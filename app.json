@@ -1,28 +1,51 @@
 {
   "expo": {
-    "name": "factory-system",
+    "name": "MANAR MS",
     "slug": "factory-system",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/manar-logo.png",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "userInterfaceStyle": "dark"
     },
     "android": {
+      "backgroundColor": "#0B0F1C",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0B0F1C",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.bkri.factorysystem"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "extra": {
+      "eas": {
+        "projectId": "2a03c759-3310-4f10-ae26-dc0a39da709b"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/2a03c759-3310-4f10-ae26-dc0a39da709b"
+    },
     "plugins": [
-      "expo-web-browser"
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/manar-logo.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0B0F1C",
+          "imageWidth": 280
+        }
+      ]
     ]
   }
 }

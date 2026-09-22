@@ -969,11 +969,23 @@ const confirmEndShift = async () => {
         title="الماكينات"
         subtitle={`${machines.length} ماكينة`}
           left={
-           <HeaderBtn
-            icon={layoutMode === 'grid' ? 'list-outline' : 'grid-outline'}
-            onPress={() => setLayoutMode((m: any) => m === 'grid' ? 'list' : 'grid')}
+    <HeaderBtn
+      icon={layoutMode === 'grid' ? 'list-outline' : 'grid-outline'}
+      onPress={() => setLayoutMode((m: any) => m === 'grid' ? 'list' : 'grid')}
+    />
+  }
+        right={
+          <HeaderBtn
+            icon="log-out-outline"
+            color={colors.danger}
+            bg={colors.danger + '15'}
+            onPress={() => Alert.alert('تسجيل الخروج', 'هل أنت متأكد؟', [
+              { text: 'إلغاء', style: 'cancel' },
+              { text: 'خروج', style: 'destructive', onPress: logout },
+            ])}
           />
-          } />
+        }
+      />
 
       {/* بانر الوردية — للمشرف والمدير فقط */}
       {(isSupervisor || isManager) && (

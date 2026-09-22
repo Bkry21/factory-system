@@ -40,7 +40,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/manar-logo.png",
+          "image": "./assets/manar-logo.png",
           "resizeMode": "contain",
           "backgroundColor": "#0B0F1C",
           "imageWidth": 280

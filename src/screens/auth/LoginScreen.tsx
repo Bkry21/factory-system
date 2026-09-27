@@ -209,7 +209,7 @@ const dark = true; // داكن دايماً
               icon="person-outline"
               value={username}
               onChangeText={t => { setUsername(t); setUsernameErr(''); }}
-              placeholder="admin"
+              placeholder="username"
               autoCapitalize="none"
               autoCorrect={false}
               error={usernameErr}

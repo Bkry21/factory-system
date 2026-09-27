@@ -7,10 +7,11 @@ import AuthNavigator           from './AuthNavigator';
 import ManagerNavigator        from './ManagerNavigator';
 import SupervisorNavigator     from './SupervisorNavigator';
 import TechnicianNavigator     from './TechnicianNavigator';
+import OperatorNavigator       from './OperatorNavigator';
 
 export default function RootNavigator() {
   const { user, isLoading, isAuthenticated } = useAuth();
-  const { colors } = useAppTheme(); // ← من الثيم مش من الـ import
+  const { colors } = useAppTheme();
 
   if (isLoading) {
     return (
@@ -23,10 +24,11 @@ export default function RootNavigator() {
   const getNavigator = () => {
     if (!isAuthenticated || !user) return <AuthNavigator />;
     switch (user.role) {
-      case 'factory_manager':       return <ManagerNavigator />;
-      case 'supervisor':            return <SupervisorNavigator />;
-      case 'maintenance_technician':return <TechnicianNavigator />;
-      default:                      return <AuthNavigator />;
+      case 'factory_manager':        return <ManagerNavigator />;
+      case 'supervisor':             return <SupervisorNavigator />;
+      case 'maintenance_technician': return <TechnicianNavigator />;
+      case 'machine_operator':       return <OperatorNavigator />; // ✅ جديد
+      default:                       return <AuthNavigator />;
     }
   };
 

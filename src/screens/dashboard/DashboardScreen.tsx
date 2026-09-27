@@ -12,9 +12,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useAppTheme } from '../../context/ThemeContext';
 import { machineService } from '../../services/machineService';
 import { faultService }   from '../../services/faultService';
-import { shiftService }   from '../../services/shiftService';
 import AppHeader from '../../components/ui/AppHeader';
-import type { Machine, Fault, Shift } from '../../types';
+import type { Machine, Fault } from '../../types';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function timeAgo(iso: string): string {
@@ -140,21 +139,18 @@ export default function DashboardScreen() {
   const [refreshing,  setRefreshing]  = useState(false);
   const [machines,    setMachines]    = useState<Machine[]>([]);
   const [faults,      setFaults]      = useState<Fault[]>([]);
-  const { activeShift, setActiveShift } = useAuth();
 
 const load = useCallback(async () => {
   try {
-    const [m, f, s] = await Promise.all([
+    const [m, f] = await Promise.all([
       machineService.getAll(),
       faultService.getAll({ status: 'pending' }),
-      shiftService.getActive(),
     ]);
     setMachines(m ?? []);
     setFaults(f ?? []);
-    setActiveShift(s); 
- } catch (e) { /* silent */ }
+  } catch (e) { /* silent */ }
   finally { setLoading(false); setRefreshing(false); }
-}, [setActiveShift]);
+}, []);
 
   useEffect(() => { load(); }, [load]);
   useWebSocket(user, useCallback((event) => {

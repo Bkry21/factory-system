@@ -9,14 +9,13 @@ import { faultService } from '../../services/faultService';
 import FaultCard from '../../components/ui/FaultCard';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { shiftService } from '../../services/shiftService';
 import { machineService } from '../../services/machineService';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import AppHeader, { HeaderBtn } from '../../components/ui/AppHeader';
 import Theme from '../../constants/theme';
-import type { Fault, Machine, FaultStatus, Shift } from '../../types';
+import type { Fault, Machine, FaultStatus } from '../../types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -229,33 +228,30 @@ export default function FaultsScreen() {
   const [faults,          setFaults]          = useState<Fault[]>([]);
   const [machines,        setMachines]        = useState<Machine[]>([]);
   const [machineImagesMap, setMachineImagesMap] = useState<Record<string, string>>({});
-  const [currentShift,    setCurrentShift]    = useState<Shift | null>(null);
   const [loading,         setLoading]         = useState(true);
   const [refreshing,      setRefreshing]      = useState(false);
   const [statusFilter,    setStatusFilter]    = useState<FaultStatus | 'all'>('all');
   const [layoutMode,      setLayoutMode]      = useState<ViewLayout>('grid');
   const [showModal,       setShowModal]       = useState(false);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const dept = user?.department ? String(user.department) : undefined;
-      const [f, m, shift] = await Promise.all([
-        faultService.getAll({ department: dept }),
-        machineService.getAll(dept),
-        shiftService.getActive(),
-      ]);
-      setFaults(f);
-      setMachines(m);
-      setCurrentShift(shift);
-      const imgs: Record<string, string> = {};
-      m.forEach((machine: Machine) => { if (machine.image) imgs[machine.id] = machine.image; });
-      setMachineImagesMap(imgs);
-    } catch (e) {
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [user]);
+const fetchData = useCallback(async () => {
+  try {
+    const dept = user?.department ? String(user.department) : undefined;
+    const [f, m] = await Promise.all([
+      faultService.getAll({ department: dept }),
+      machineService.getAll(dept),
+    ]);
+    setFaults(f);
+    setMachines(m);
+    const imgs: Record<string, string> = {};
+    m.forEach((machine: Machine) => { if (machine.image) imgs[machine.id] = machine.image; });
+    setMachineImagesMap(imgs);
+  } catch (e) {
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+}, [user]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -280,23 +276,21 @@ export default function FaultsScreen() {
     }
   }, []));
 
-  const handleReportFault = async (machineId: string, description: string, photoUri: string) => {
-    if (!currentShift) {
-      Alert.alert('تنبيه', 'لا توجد وردية نشطة حالياً، يرجى بدء الوردية أولاً');
-      return;
-    }
-    try {
-      const fault = await faultService.create({
-        machineId, shiftId: currentShift.id, description, beforePhoto: photoUri,
-      });
-      setFaults(prev => [fault, ...prev]);
-      setMachines(prev => prev.map(m =>
-        m.id === machineId ? { ...m, status: 'maintenance', lastUpdated: new Date().toISOString() } : m
-      ));
-    } catch (e: any) {
-      Alert.alert('خطأ ' + (e?.response?.status ?? ''), JSON.stringify(e?.response?.data ?? ''));
-    }
-  };
+const handleReportFault = async (machineId: string, description: string, photoUri: string) => {
+  try {
+    const fault = await faultService.create({
+      machineId,
+      description,
+      beforePhoto: photoUri,
+    });
+    setFaults(prev => [fault, ...prev]);
+    setMachines(prev => prev.map(m =>
+      m.id === machineId ? { ...m, status: 'maintenance', lastUpdated: new Date().toISOString() } : m
+    ));
+  } catch (e: any) {
+    Alert.alert('خطأ ' + (e?.response?.status ?? ''), JSON.stringify(e?.response?.data ?? ''));
+  }
+};
 
   const filtered = faults.filter(f => statusFilter === 'all' || f.status === statusFilter);
 

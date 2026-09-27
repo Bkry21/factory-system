@@ -195,7 +195,6 @@ interface EntryModalProps {
   onSave: (data: any) => Promise<void>;
   department: string;
   supervisorId: string;
-  shiftId: string | number;
 }
 
 const DEFAULT_MATERIALS: RawMaterialUsed[] = [
@@ -204,7 +203,7 @@ const DEFAULT_MATERIALS: RawMaterialUsed[] = [
   { name: 'زبدة', quantity: 0, unit: 'شوال' },
 ];
 
-function EntryModal({ visible, existing, onClose, onSave, department, supervisorId, shiftId }: EntryModalProps) {
+function EntryModal({ visible, existing, onClose, onSave, department, supervisorId }: EntryModalProps) {
   const { colors } = useAppTheme();
   const isEdit = !!existing;
 
@@ -249,7 +248,6 @@ const validate = (): string | null => {
   if (!target || Number(target) <= 0)    return 'أدخل الكمية المستهدفة';
   if (!actual || Number(actual) < 0)     return 'أدخل الكمية الفعلية';
   if (Number(rejected) > Number(actual)) return 'الكمية المرفوضة لا تتجاوز الفعلية';
-  if (!shiftId)                          return 'يرجى التأكد من وجود وردية نشطة';
   return null;
 };
 
@@ -259,16 +257,15 @@ const validate = (): string | null => {
     setSaving(true);
     try {
       await onSave({
-        department,
-        date: today(),
-        targetQuantity:   Number(target),
-        actualQuantity:   Number(actual),
-        rejectedQuantity: Number(rejected) || 0,
-        rawMaterialsUsed: materials.filter(m => m.quantity > 0),
-        photoUrl:         photoUri || '',
-        supervisorId:     Number(supervisorId) || supervisorId,
-        shift:            Number(shiftId),
-      });
+  department,
+  date: today(),
+  targetQuantity:   Number(target),
+  actualQuantity:   Number(actual),
+  rejectedQuantity: Number(rejected) || 0,
+  rawMaterialsUsed: materials.filter(m => m.quantity > 0),
+  photoUrl:         photoUri || '',
+  supervisorId:     Number(supervisorId) || supervisorId,
+});
       onClose();
     } catch (e: any) {
       Alert.alert('خطأ ' + (e?.response?.status || ''), JSON.stringify(e?.response?.data ?? e?.message));
@@ -436,7 +433,7 @@ const entryStyles = StyleSheet.create({
 });
 
 export default function ProductionScreen() {
-  const { user, activeShift: currentShift } = useAuth();
+  const { user } = useAuth();
   const { colors } = useAppTheme();
   const insets     = useSafeAreaInsets();
 
@@ -472,37 +469,28 @@ export default function ProductionScreen() {
 
   const onRefresh = () => { setRefreshing(true); fetchData(); };
 
-  const handleSave = useCallback(async (data: any) => {
-    const targetShiftId = currentShift?.id;
-    if (!targetShiftId) {
-      Alert.alert('تنبيه', 'لا توجد وردية نشطة حالياً، يرجى بدء الوردية أولاً');
-      return;
-    }
-    try {
-      const payload = { ...data, shift: Number(targetShiftId) };
-      if (editTarget) {
-        const updated = await productionService.update(editTarget.id, payload);
-        setTodayProd(updated);
-      } else {
-        const created = await productionService.create(payload);
-        setTodayProd(created);
-      }
-      setEditTarget(null);
-      setShowModal(false);
-    } catch (e: any) {
-      Alert.alert('خطأ ' + (e?.response?.status || ''), JSON.stringify(e?.response?.data ?? e?.message));
-      throw e;
-    }
-  }, [editTarget, currentShift]);
-
-  const openCreate = () => {
-    if (!currentShift?.id) {
-      Alert.alert('تنبيه', 'لا يمكن تسجيل الإنتاج لعدم وجود وردية نشطة حالياً');
-      return;
+ const handleSave = useCallback(async (data: any) => {
+  try {
+    const payload = { ...data };
+    if (editTarget) {
+      const updated = await productionService.update(editTarget.id, payload);
+      setTodayProd(updated);
+    } else {
+      const created = await productionService.create(payload);
+      setTodayProd(created);
     }
     setEditTarget(null);
-    setShowModal(true);
-  };
+    setShowModal(false);
+  } catch (e: any) {
+    Alert.alert('خطأ ' + (e?.response?.status || ''), JSON.stringify(e?.response?.data ?? e?.message));
+    throw e;
+  }
+}, [editTarget]);
+
+   const openCreate = () => {
+     setEditTarget(null);
+     setShowModal(true);
+   };
 
   if (loading) {
     return (
@@ -562,14 +550,13 @@ export default function ProductionScreen() {
       </ScrollView>
 
       <EntryModal
-        visible={showModal}
-        existing={editTarget}
-        onClose={() => { setShowModal(false); setEditTarget(null); }}
-        onSave={handleSave}
-        department={user?.department ?? ''}
-        supervisorId={user?.id ?? ''}
-        shiftId={currentShift?.id || ''}
-      />
+  visible={showModal}
+  existing={editTarget}
+  onClose={() => { setShowModal(false); setEditTarget(null); }}
+  onSave={handleSave}
+  department={user?.department ?? ''}
+  supervisorId={user?.id ?? ''}
+/>
     </View>
   );
 }

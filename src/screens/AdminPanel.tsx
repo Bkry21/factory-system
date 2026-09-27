@@ -44,6 +44,7 @@ const ROLES = [
   { label: 'مدير المصنع',  value: 'factory_manager' },
   { label: 'مشرف تشغيل',  value: 'supervisor' },
   { label: 'فني صيانة',    value: 'maintenance_technician' },
+  { label: 'مشغل ماكينة', value: 'machine_operator' },
 ];
 
 const MACHINE_TYPES = [

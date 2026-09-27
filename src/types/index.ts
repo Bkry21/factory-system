@@ -1,147 +1,152 @@
-// المستخدمين
+// ─── المستخدمين ───────────────────────────────────────────────────────────
+
 export type UserRole =
   | 'factory_manager'
   | 'supervisor'
-  | 'maintenance_technician';
+  | 'maintenance_technician'
+  | 'machine_operator';
+
+export interface AssignedMachine {
+  id:     number;
+  name:   string;
+  status: string;
+}
 
 export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  department?: string;
-  avatar?: string;
+  id:               string;
+  name:             string;
+  email:            string;
+  username:         string;
+  role:             UserRole;
+  department?:      string;
+  avatar?:          string;
+  assigned_machine?: AssignedMachine | null;
 }
 
-// الماكينات
-export type MachineStatus =
-  | 'running'
-  | 'stopped'
-  | 'maintenance';
+// ─── الماكينات ────────────────────────────────────────────────────────────
+
+export type MachineStatus = 'running' | 'stopped' | 'maintenance';
 
 export interface Machine {
-  id: string;
-  name: string;
-  department: string;
-  status: MachineStatus;
-  lastUpdated: string;
-  type?: string;
-  image?: string;
-}
-
-// الورديات
-export interface Shift {
   id:               string;
-  shiftType:        string;
-  shiftTypeDisplay: string;
-  supervisorId:     string;
-  supervisorName:   string;
-  startTime:        string;
-  endTime?:         string;
-  isActive:         boolean;
-  startPhoto:       string;
+  name:             string;
+  department:       string;
+  status:           MachineStatus;
+  lastUpdated:      string;
+  type?:            string;
+  image?:           string;
+  has_pending_fault?: boolean;
 }
 
-// الأعطال
-export type FaultStatus =
-  | 'pending'
-  | 'in_progress'
-  | 'resolved';
+// ─── الأعطال ──────────────────────────────────────────────────────────────
+
+export type FaultStatus = 'pending' | 'in_progress' | 'resolved';
 
 export interface Fault {
-  id:              string;
-  machineId:       string;
-  machineName:     string;
-  shiftId:         string;
-  reportedById:    string;
-  reportedByName:  string;
-  assignedToId?:   string;
-  assignedToName?: string;
-  description:     string;
-  status:          FaultStatus;
-  reportedAt:      string;
-  acceptedAt?:     string;
-  resolvedAt?:     string;
-  beforePhoto:     string;
-  afterPhoto?:     string;
-  resolutionNotes: string;
-  department?:     string;
+  id:               string;
+  machineId:        string;
+  machineName:      string;
+  reportedById:     string;
+  reportedByName:   string;
+  assignedToId?:    string;
+  assignedToName?:  string;
+  description:      string;
+  status:           FaultStatus;
+  reportedAt:       string;
+  acceptedAt?:      string;
+  resolvedAt?:      string;
+  beforePhoto:      string;
+  afterPhoto?:      string;
+  resolutionNotes:  string;
+  department?:      string;
   downtimeMinutes?: number;
 }
 
-// المواد الخام المستخدمة في الإنتاج
+// ─── رولات الكيس ─────────────────────────────────────────────────────────
+
+export interface DailyRollLog {
+  id:          string;
+  machineId:   string;
+  machineName: string;
+  date:        string;
+  rollCount:   number;
+  notes:       string;
+}
+
+// ─── الإنتاج ──────────────────────────────────────────────────────────────
+
 export interface RawMaterialUsed {
-  name: string;
+  name:     string;
   quantity: number;
-  unit: string;
+  unit:     string;
 }
 
 export interface Production {
-  id: string;
-  shiftId: string;
-  supervisorId: string;
-  supervisorName: string;
-  date: string;
-  targetQuantity: number;
-  actualQuantity: number;
+  id:               string;
+  supervisorId:     string;
+  supervisorName:   string;
+  date:             string;
+  targetQuantity:   number;
+  actualQuantity:   number;
   rejectedQuantity: number;
-  achievementRate: number;
-  photo?: string;
-  photoUrl?: string;
-  notes: string;
+  achievementRate:  number;
+  photo?:           string;
+  photoUrl?:        string;
+  notes:            string;
   rawMaterialsUsed?: RawMaterialUsed[];
 }
 
-// التقارير
+// ─── التقارير ─────────────────────────────────────────────────────────────
+
 export interface ProductionReport {
-  period: string;
-  department: string;
-  totalTarget: number;
-  totalActual: number;
-  totalRejected: number;
+  period:          string;
+  department:      string;
+  totalTarget:     number;
+  totalActual:     number;
+  totalRejected:   number;
   achievementRate: number;
   dailyBreakdown: {
-    date: string;
-    target: number;
-    actual: number;
+    date:     string;
+    target:   number;
+    actual:   number;
     rejected: number;
   }[];
   rawMaterialsUsed?: {
-    name: string;
-    unit: string;
+    name:          string;
+    unit:          string;
     totalQuantity: number;
   }[];
 }
 
 export interface MachineReport {
-  period: string;
-  avgAvailability?: number;
-  totalFaults?: number;
+  period:             string;
+  avgAvailability?:   number;
+  totalFaults?:       number;
   avgResolutionTime?: number;
   machines: {
-    machineId: string;
-    machineName: string;
-    department?: string;
-    totalRunningHours: number;
-    totalDowntimeHours: number;
-    faultCount: number;
-    avgResolutionTime?: number;
+    machineId:           string;
+    machineName:         string;
+    department?:         string;
+    totalRunningHours:   number;
+    totalDowntimeHours:  number;
+    faultCount:          number;
+    avgResolutionTime?:  number;
   }[];
 }
 
 export interface FaultReport {
-  period: string;
-  totalFaults: number;
+  period:                   string;
+  totalFaults:              number;
   avgResolutionTimeMinutes: number;
-  resolvedCount?: number;
+  resolvedCount?:           number;
   byStatus?: {
-    pending?: number;
+    pending?:     number;
     in_progress?: number;
-    resolved?: number;
+    resolved?:    number;
   };
   mostFrequentFaults: {
-    machineName: string;
-    department?: string;
-    count: number;
+    machineName:  string;
+    department?:  string;
+    count:        number;
   }[];
 }

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "886549830191",
+    "project_id": "manar-factory",
+    "storage_bucket": "manar-factory.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:886549830191:android:8d4f8789b487d9bf0704da",
+        "android_client_info": {
+          "package_name": "com.bkri.factorysystem"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZsamlpPyG08dRcoee1mXmEDuxbyS-_Rg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

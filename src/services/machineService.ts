@@ -20,20 +20,18 @@ export const machineService = {
     return data.map(mapMachine);
   },
 
-  // تشغيل ماكينة — POST /api/machine-logs/
-start: async (machineId: string, shiftId: string, photoUrl?: string): Promise<void> => {
-  await api.post('/machine-logs/', {
-    machine: Number(machineId),
-    shift:   Number(shiftId),
-    status:  'running',
-    ...(photoUrl ? { photo: photoUrl } : {}),
-  });
-},
-  // إيقاف ماكينة — POST /api/machine-logs/
-  stop: async (machineId: string, shiftId: string): Promise<void> => {
+  // ✅ حذف shiftId — بس machineId
+  start: async (machineId: string): Promise<void> => {
     await api.post('/machine-logs/', {
       machine: Number(machineId),
-      shift:   Number(shiftId),
+      status:  'running',
+    });
+  },
+
+  // ✅ حذف shiftId — بس machineId
+  stop: async (machineId: string): Promise<void> => {
+    await api.post('/machine-logs/', {
+      machine: Number(machineId),
       status:  'stopped',
     });
   },

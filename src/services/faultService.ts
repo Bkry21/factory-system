@@ -6,7 +6,6 @@ const map = (f: any): Fault => ({
   id:              String(f.id),
   machineId:       String(f.machine),
   machineName:     f.machine_name ?? String(f.machine),
-  shiftId:         String(f.shift),
   reportedById:    String(f.reported_by ?? ''),
   reportedByName:  f.reported_by_name ?? '',
   assignedToId:    f.assigned_to ? String(f.assigned_to) : undefined,
@@ -25,22 +24,21 @@ export const faultService = {
 
   getAll: async (filters?: { status?: string; machineId?: string; department?: string }): Promise<Fault[]> => {
     const params: any = {};
-    if (filters?.status)    params.status  = filters.status;
-    if (filters?.machineId) params.machine = filters.machineId;
-    if (filters?.department) params.department = filters.department;  
+    if (filters?.status)     params.status     = filters.status;
+    if (filters?.machineId)  params.machine    = filters.machineId;
+    if (filters?.department) params.department = filters.department;
     const { data } = await api.get('/faults/', { params });
     return data.map(map);
   },
 
+  // ✅ حذف shiftId كامل
   create: async (payload: {
     machineId:    string;
-    shiftId:      string;
     description:  string;
-    beforePhoto?: string;  
+    beforePhoto?: string;
   }): Promise<Fault> => {
     const form = new FormData();
     form.append('machine',     payload.machineId);
-    form.append('shift',       payload.shiftId);
     form.append('description', payload.description);
     if (payload.beforePhoto)
       form.append('before_photo', buildImageField(payload.beforePhoto, 'before_photo'));
@@ -67,8 +65,9 @@ export const faultService = {
     });
     return map(data);
   },
+
   unaccept: async (faultId: string): Promise<Fault> => {
-  const { data } = await api.post(`/faults/${faultId}/unaccept/`);
-  return map(data);
-},
+    const { data } = await api.post(`/faults/${faultId}/unaccept/`);
+    return map(data);
+  },
 };

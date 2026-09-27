@@ -14,7 +14,6 @@ import { useWebSocket }   from '../../hooks/useWebSocket';
 import { useAppTheme }    from '../../context/ThemeContext';
 import { machineService } from '../../services/machineService';
 import { faultService }   from '../../services/faultService';
-import { shiftService }   from '../../services/shiftService';
 import AppHeader, { HeaderBtn } from '../../components/ui/AppHeader';
 import Card          from '../../components/ui/Card';
 import StatusBadge   from '../../components/ui/StatusBadge';
@@ -23,7 +22,7 @@ import SectionTitle  from '../../components/ui/SectionTitle';
 import EmptyState    from '../../components/ui/EmptyState';
 import PhotoPicker   from '../../components/form/PhotoPicker';
 import Theme  from '../../constants/theme';
-import type { Machine, Fault, Shift, MachineStatus } from '../../types';
+import type { Machine, Fault, MachineStatus } from '../../types';
 import { Dimensions } from 'react-native';
 
 const { width: W } = Dimensions.get('window');
@@ -100,94 +99,6 @@ const ts = StyleSheet.create({
   text: { fontSize: 13, fontWeight: '700' },
 });
 
-// ── Shift Banner ───────────────────────────────────────────────────────────
-
-function ShiftBanner({
-  shift, onStart, onEnd, loading, colors, elapsedSeconds, canControl,
-}: {
-  shift: Shift | null;
-  onStart: () => void;
-  onEnd:   () => void;
-  loading: boolean;
-  colors: any;
-  elapsedSeconds: number;
-  canControl: boolean; 
-}) {
-  return (
-    <View style={[
-      sb.wrap,
-      shift
-        ? { backgroundColor: colors.success + '15', borderColor: colors.success + '40' }
-        : { backgroundColor: colors.surfaceAlt,  borderColor: colors.border },
-    ]}>
-      {/* زر البدء/الإنهاء — للمشرف فقط */}
-      {canControl && (
-        <TouchableOpacity
-          style={[
-            sb.btn,
-            shift
-              ? { backgroundColor: colors.danger + '15',  borderColor: colors.danger  + '40' }
-              : { backgroundColor: colors.success + '15', borderColor: colors.success + '40' },
-          ]}
-          onPress={shift ? onEnd : onStart}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color={shift ? colors.danger : colors.success} />
-          ) : (
-            <>
-              <Ionicons
-                name={shift ? 'stop-circle-outline' : 'play-circle-outline'}
-                size={15}
-                color={shift ? colors.danger : colors.success}
-              />
-              <Text style={[sb.btnTxt, { color: shift ? colors.danger : colors.success }]}>
-                {shift ? 'إنهاء' : 'بدء الوردية'}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-      )}
-
-      <View style={sb.info}>
-        <View style={[sb.dot, { backgroundColor: shift ? colors.success : colors.textMuted }]} />
-        <View>
-          <Text style={[sb.txt, { color: colors.textPrimary }]}>
-            {shift
-              ? `وردية ${shift.shiftTypeDisplay} — نشطة`
-              : 'لا توجد وردية نشطة'}
-          </Text>
-          {shift && (
-            <Text style={[sb.timer, { color: colors.success }]}>
-              ⏱️ {formatTimer(elapsedSeconds)}
-            </Text>
-          )}
-        </View>
-      </View>
-    </View>
-  );
-}
-
-const sb = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row-reverse', alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: 16, marginTop: 12,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: Theme.radius.lg, borderWidth: 1,
-  },
-  info: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot:  { width: 7, height: 7, borderRadius: 4 },
-  txt:  { fontSize: 12, fontWeight: '600' },
-  timer: { fontSize: 11, fontWeight: '700', marginTop: 2 },
-  btn: {
-    flexDirection: 'row-reverse', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: Theme.radius.sm, borderWidth: 1,
-  },
-  btnTxt: { fontSize: 12, fontWeight: '700' },
-});
 
 // ── Shift Photo Modal ──────────────────────────────────────────────────────
 function ShiftPhotoModal({
@@ -328,12 +239,11 @@ const spm = StyleSheet.create({
 
 // ── Machine Card ───────────────────────────────────────────────────────────
 function MachineCard({
-  machine, fault, shiftId, userRole,
+  machine, fault, userRole,
   onPress, onUpdated, onToast, onFault, colors, fullWidth,
 }: {
   machine:   Machine;
   fault?:    Fault;
-  shiftId:   string | null;
   userRole:  string | undefined;
   onPress:   () => void;
   onUpdated: (m: Machine) => void;
@@ -348,27 +258,27 @@ function MachineCard({
   const isSupervisor = userRole === 'supervisor';
 
 const start = async () => {
-  if (!shiftId) { Alert.alert('تنبيه', 'ابدأ الوردية أولاً'); return; }
   setBusy(true);
   try {
-    await machineService.start(machine.id, shiftId);
+    await machineService.start(machine.id);
     onUpdated({ ...machine, status: 'running', lastUpdated: new Date().toISOString() });
     onToast(`تم تشغيل ${machine.name}`, 'start');
   } catch (e: any) {
-    Alert.alert('خطأ', JSON.stringify(e?.response?.data) ?? 'تعذر تشغيل الماكينة');
+    Alert.alert('خطأ', 'تعذر تشغيل الماكينة');
   }
   finally { setBusy(false); }
 };
-  const stop = async () => {
-    if (!shiftId) { Alert.alert('تنبيه', 'لا توجد وردية نشطة'); return; }
-    setBusy(true);
-    try {
-      await machineService.stop(machine.id, shiftId);
-      onUpdated({ ...machine, status: 'stopped', lastUpdated: new Date().toISOString() });
-      onToast(`تم إيقاف ${machine.name}`, 'stop');
-    } catch { Alert.alert('خطأ', 'تعذر إيقاف الماكينة'); }
-    finally { setBusy(false); }
-  };
+
+// ✅ stop
+const stop = async () => {
+  setBusy(true);
+  try {
+    await machineService.stop(machine.id);
+    onUpdated({ ...machine, status: 'stopped', lastUpdated: new Date().toISOString() });
+    onToast(`تم إيقاف ${machine.name}`, 'stop');
+  } catch { Alert.alert('خطأ', 'تعذر إيقاف الماكينة'); }
+  finally { setBusy(false); }
+};
 
   const isFaulted = !!fault;
   const isRunning = machine.status === 'running';
@@ -642,10 +552,9 @@ const mc = StyleSheet.create({
 
 // ── Fault Modal ────────────────────────────────────────────────────────────
 function FaultModal({
-  machine, shiftId, onClose, onSuccess, colors,
+  machine, onClose, onSuccess, colors,
 }: {
   machine:   Machine | null;
-  shiftId:   string | null;
   onClose:   () => void;
   onSuccess: (msg: string) => void;
   colors: any;
@@ -664,7 +573,6 @@ function FaultModal({
     try {
       await faultService.create({
         machineId:   machine.id,
-        shiftId:     shiftId ?? '',
         description: desc.trim(),
         beforePhoto: photo || undefined,
       });
@@ -791,7 +699,7 @@ const ds = StyleSheet.create({
 // MAIN SCREEN
 // ══════════════════════════════════════════════════════════════════════════
 export default function MachinesScreen() {
- const { user, logout, activeShift: shift, setActiveShift } = useAuth();
+const { user, logout } = useAuth();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
 
@@ -806,11 +714,9 @@ export default function MachinesScreen() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [shiftBusy, setShiftBusy] = useState(false);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<MachineStatus | 'all'>('all');
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [showShiftPhoto, setShowShiftPhoto] = useState(false);
+
 
   const [selected, setSelected] = useState<Machine | null>(null);
   const [faultMach, setFaultMach] = useState<Machine | null>(null);
@@ -823,30 +729,20 @@ export default function MachinesScreen() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  useEffect(() => {
-    if (!shift) { setElapsedSeconds(0); return; }
-    const interval = setInterval(() => { setElapsedSeconds(prev => prev + 1); }, 1000);
-    return () => clearInterval(interval);
-  }, [shift]);
-
 const initialLoad = useCallback(async () => {
   try {
     const dept = isManager ? undefined : user?.department;
-    const [m, f, s] = await Promise.all([
+    const [m, f] = await Promise.all([
       machineService.getAll(dept),
       faultService.getAll({ status: 'pending' }),
-      shiftService.getActive(),
     ]);
     setMachines(m ?? []);
     setFaults(f ?? []);
-    setActiveShift(s);
-    if (s) {
-      const elapsed = Math.floor((Date.now() - new Date(s.startTime).getTime()) / 1000);
-      setElapsedSeconds(Math.max(0, elapsed));
-    }
   } catch (e) { /* silent */ }
   finally { setLoading(false); }
 }, [isManager, user?.department]);
+
+
 
   const refreshData = useCallback(async () => {
     try {
@@ -862,68 +758,6 @@ const initialLoad = useCallback(async () => {
   }, [isManager, user?.department]);
 
   useEffect(() => { initialLoad(); }, [initialLoad]);
-
-  const startShift = async () => {
-    setShowShiftPhoto(true);
-  };
-
-  const doStartShift = async (photoUri?: string) => {
-    setShiftBusy(true);
-    try {
-      const s = await shiftService.start('morning', photoUri);
-      setActiveShift(s);
-      setElapsedSeconds(0);
-      showToast('تم بدء الوردية', 'start');
-    } catch (e: any) {
-      Alert.alert('خطأ', JSON.stringify(e?.response?.data) ?? 'تعذر بدء الوردية');
-    } finally { setShiftBusy(false); }
-  };
-
-const endShift = async () => {
-  if (!shift) return;
-
-  // 1. تحقق من إنتاج اليوم
-  try {
-    const todayProd = await productionService.getToday(user?.department);
-    if (!todayProd) {
-      Alert.alert(
-        'تنبيه ⚠️',
-        'لم يتم تسجيل إنتاج اليوم بعد. هل تريد إنهاء الوردية بدون تسجيل الإنتاج؟',
-        [
-          { text: 'إلغاء', style: 'cancel' },
-          { text: 'إنهاء بدون إنتاج', style: 'destructive', onPress: confirmEndShift },
-        ]
-      );
-      return;
-    }
-  } catch {}
-
-
-  Alert.alert(
-    'إنهاء الوردية',
-    'هل أنت متأكد من إنهاء الوردية؟',
-    [
-      { text: 'إلغاء', style: 'cancel' },
-      { text: 'إنهاء', style: 'destructive', onPress: confirmEndShift },
-    ]
-  );
-};
-
-const confirmEndShift = async () => {
-  if (!shift) return; 
-   
-  try {
-    await shiftService.end(shift.id); 
-    setActiveShift(null);
-    setElapsedSeconds(0);
-    setMachines(prev => prev.map(m =>
-      m.status === 'running' ? { ...m, status: 'stopped' as MachineStatus } : m
-    ));
-    showToast('تم إنهاء الوردية', 'stop');
-} catch (e: any) {
-  Alert.alert('خطأ', e?.message ?? 'تعذر إنهاء الوردية');
-}
-};
 
   useWebSocket(user, useCallback((evt) => {
     if (evt.type === 'machine_status_changed') {
@@ -987,19 +821,6 @@ const confirmEndShift = async () => {
         }
       />
 
-      {/* بانر الوردية — للمشرف والمدير فقط */}
-      {(isSupervisor || isManager) && (
-      <ShiftBanner
-        shift={shift}
-  onStart={startShift}
-  onEnd={endShift}
-  loading={shiftBusy}
-  colors={colors}
-  elapsedSeconds={elapsedSeconds}
-         canControl={isSupervisor}  
-       />
-      )}
-
       <View style={s.statsRow}>
         {filterOptions.map(c => (
           <TouchableOpacity
@@ -1044,7 +865,7 @@ const confirmEndShift = async () => {
     <MachineCard
       machine={item}
       fault={faults.find(f => f.machineId === item.id)}
-      shiftId={shift?.id ?? null}
+      
       userRole={user?.role}
       onPress={() => setSelected(item)}
       onUpdated={upd => setMachines(prev => prev.map(m => m.id === upd.id ? upd : m))}
@@ -1072,23 +893,11 @@ const confirmEndShift = async () => {
 
       <FaultModal
         machine={faultMach}
-        shiftId={shift?.id ?? null}
+        
         onClose={() => setFaultMach(null)}
         onSuccess={msg => showToast(msg, 'fault')}
         colors={colors}
       />
-
-      <ShiftPhotoModal
-        visible={showShiftPhoto}
-        onClose={() => setShowShiftPhoto(false)}
-        onCapture={async (uri) => {
-          setShowShiftPhoto(false);
-          await doStartShift(uri);
-        }}
-        loading={shiftBusy}
-        colors={colors}
-      />
-
       <Toast message={toast} type={toastType} colors={colors} />
     </View>
   );

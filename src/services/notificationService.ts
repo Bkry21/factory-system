@@ -37,8 +37,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
     projectId: '2a03c759-3310-4f10-ae26-dc0a39da709b',
   })).data;
 
-  // ارسل الـ token للباك اند
-  await api.post('/notifications/register-token/', { token });
+await api.post('/auth/notifications/register-token/', { token });
 
   if (Platform.OS === 'android') {
     Notifications.setNotificationChannelAsync('default', {

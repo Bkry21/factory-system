@@ -388,10 +388,12 @@ const handleReportFault = async (machineId: string, description: string, photoUr
       />
 
       <TouchableOpacity
-  style={[styles.fab, { backgroundColor: colors.danger }]}
-  onPress={() => setShowModal(true)} 
-  activeOpacity={0.85}
->
+        style={[styles.fab, { backgroundColor: colors.danger }]}
+        onPress={() => setShowModal(true)}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="warning-outline" size={22} color="#fff" />
+        <Text style={styles.fabTxt}>إبلاغ عن عطل</Text>
       </TouchableOpacity>
 
       <ReportFaultModal
@@ -419,11 +421,19 @@ const styles = StyleSheet.create({
   emptyTitle:             { fontSize: 17, fontWeight: 'bold' },
   emptyText:              { fontSize: 13 },
   fab: {
-  position: 'absolute', bottom: 220, alignSelf: 'center',
-  backgroundColor: '#FF5757',  // ← ثابت هنا
-  width: 56, height: 56, borderRadius: 28,
-  justifyContent: 'center', alignItems: 'center',
-  shadowColor: '#FF5757', shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.4, shadowRadius: 8, elevation: 6,
-},
+    position: 'absolute', bottom: 200, alignSelf: 'center',
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 999,
+    shadowColor: '#FF5757', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 8, elevation: 6,
+  },
+  fabTxt: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });

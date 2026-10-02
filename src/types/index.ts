@@ -150,3 +150,5 @@ export interface FaultReport {
     count:        number;
   }[];
 }
+
+export type ToastType = 'success' | 'error' | 'warning' | 'info' | 'start' | 'stop';

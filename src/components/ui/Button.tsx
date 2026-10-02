@@ -8,8 +8,8 @@ import {
   TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Colors from '../constants/colors';
-import Theme from '../constants/theme';
+import Colors from '../../constants/colors';
+import Theme from '../../constants/theme';
 
 interface ButtonProps {
   title: string;

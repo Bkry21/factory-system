@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, RefreshControl, ScrollView,
-  StatusBar, Modal, TextInput, Alert, Animated, Image
+  StatusBar, Modal, TextInput, Alert, Image
 } from 'react-native';
 import { Ionicons }             from '@expo/vector-icons';
 import { useSafeAreaInsets }    from 'react-native-safe-area-context';
@@ -15,60 +15,8 @@ import { dayService }           from '../../services/dayService';
 import AppHeader, { HeaderBtn } from '../../components/ui/AppHeader';
 import PhotoPicker              from '../../components/form/PhotoPicker';
 import Theme                    from '../../constants/theme';
+import Toast, { ToastType } from '../../components/ui/Toast';
 import type { Machine, Fault, MachineStatus } from '../../types';
-
-// ── Toast ──────────────────────────────────────────────────────────────────
-type ToastType = 'success' | 'error' | 'warning';
-
-function Toast({ message, type, colors }: { message: string | null; type: ToastType; colors: any }) {
-  const fade  = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(-20)).current;
-  const insets = useSafeAreaInsets();
-
-  useEffect(() => {
-    if (!message) return;
-    Animated.parallel([
-      Animated.timing(fade,  { toValue: 1, duration: 200, useNativeDriver: true }),
-      Animated.timing(slide, { toValue: 0, duration: 200, useNativeDriver: true }),
-    ]).start();
-    const t = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(fade,  { toValue: 0, duration: 200, useNativeDriver: true }),
-        Animated.timing(slide, { toValue: -20, duration: 200, useNativeDriver: true }),
-      ]).start();
-    }, 2600);
-    return () => clearTimeout(t);
-  }, [message]);
-
-  if (!message) return null;
-
-  const color = type === 'success' ? colors.success : type === 'error' ? colors.danger : colors.warning;
-  const icon: keyof typeof Ionicons.glyphMap =
-    type === 'success' ? 'checkmark-circle' : type === 'error' ? 'close-circle' : 'warning';
-
-  return (
-    <Animated.View style={[
-      ts.wrap,
-      { opacity: fade, transform: [{ translateY: slide }], top: insets.top + 60, backgroundColor: colors.surface, borderColor: colors.border },
-    ]}>
-      <View style={[ts.icon, { backgroundColor: color }]}>
-        <Ionicons name={icon} size={13} color="#fff" />
-      </View>
-      <Text style={[ts.text, { color: colors.textPrimary }]}>{message}</Text>
-    </Animated.View>
-  );
-}
-
-const ts = StyleSheet.create({
-  wrap: {
-    position: 'absolute', alignSelf: 'center', zIndex: 999,
-    flexDirection: 'row-reverse', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderRadius: 999, gap: 10, borderWidth: 1,
-  },
-  icon: { width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  text: { fontSize: 13, fontWeight: '700' },
-});
 
 // ── Fault Modal ─────────────────────────────────────────────────────────────
 function FaultModal({ machine, onClose, onSuccess, colors }: {
@@ -316,7 +264,7 @@ export default function OperatorScreen() {
     try {
       await machineService.start(machine.id);
       setMachine(prev => prev ? { ...prev, status: 'running', lastUpdated: new Date().toISOString() } : prev);
-      showToast(`تم تشغيل ${machine.name}`, 'success');
+      showToast(`تم تشغيل ${machine.name}`, 'start');
     } catch { Alert.alert('خطأ', 'تعذر تشغيل الماكينة'); }
     finally { setBusy(false); }
   };
@@ -330,7 +278,7 @@ export default function OperatorScreen() {
         try {
           await machineService.stop(machine.id);
           setMachine(prev => prev ? { ...prev, status: 'stopped', lastUpdated: new Date().toISOString() } : prev);
-          showToast(`تم إيقاف ${machine.name}`, 'warning');
+          showToast(`تم إيقاف ${machine.name}`, 'stop');
         } catch { Alert.alert('خطأ', 'تعذر إيقاف الماكينة'); }
         finally { setBusy(false); }
       }},
@@ -345,8 +293,6 @@ export default function OperatorScreen() {
 
   const statusColor = isRunning ? colors.success : isStopped ? colors.danger : colors.warning;
   const statusLabel = isRunning ? 'شغالة' : isStopped ? 'متوقفة' : 'تحت الصيانة';
-  const statusIcon: keyof typeof Ionicons.glyphMap =
-    isRunning ? 'radio-button-on' : isStopped ? 'stop-circle' : 'warning';
 
   if (loading) {
     return (
@@ -394,52 +340,52 @@ export default function OperatorScreen() {
           </View>
         ) : (
           <>
-{/* ── بطاقة الماكينة ── */}
-<View style={[s.machineCard, { backgroundColor: colors.surface, borderColor: statusColor + '60', shadowColor: statusColor }]}>
-  
-  {/* صورة الماكينة */}
-  {machine.image && (
-    <Image
-      source={{ uri: machine.image }}
-      style={s.machineImg}
-      resizeMode="cover"
-    />
-  )}
+            {/* ── بطاقة الماكينة ── */}
+            <View style={[s.machineCard, { backgroundColor: colors.surface, borderColor: statusColor + '60', shadowColor: statusColor }]}>
+              
+              {/* صورة الماكينة */}
+              {machine.image && (
+                <Image
+                  source={{ uri: machine.image }}
+                  style={s.machineImg}
+                  resizeMode="cover"
+                />
+              )}
 
-  {/* Header */}
-  <View style={s.cardHead}>
-    <View style={[s.statusBadge, { backgroundColor: statusColor + '20', borderColor: statusColor + '50' }]}>
-      <View style={[s.dot, { backgroundColor: statusColor }]} />
-      <Text style={[s.statusTxt, { color: statusColor }]}>{statusLabel}</Text>
-    </View>
-    <Text style={[s.machineName, { color: colors.textPrimary }]}>{machine.name}</Text>
-  </View>
+              {/* Header */}
+              <View style={s.cardHead}>
+                <View style={[s.statusBadge, { backgroundColor: statusColor + '20', borderColor: statusColor + '50' }]}>
+                  <View style={[s.dot, { backgroundColor: statusColor }]} />
+                  <Text style={[s.statusTxt, { color: statusColor }]}>{statusLabel}</Text>
+                </View>
+                <Text style={[s.machineName, { color: colors.textPrimary }]}>{machine.name}</Text>
+              </View>
 
-  {/* Info Row */}
-  <View style={[s.infoRow, { borderTopColor: colors.border }]}>
-    {[
-      { label: 'النوع', value: machine.type       ?? '—', icon: 'construct-outline' as const },
-      { label: 'القسم', value: machine.department ?? '—', icon: 'business-outline'  as const },
-    ].map((item, i) => (
-      <View key={i} style={[s.infoItem, i === 0 && { borderRightWidth: 1, borderRightColor: colors.border }]}>
-        <Ionicons name={item.icon} size={14} color={colors.textMuted} />
-        <Text style={[s.infoVal, { color: colors.textPrimary }]}>{item.value}</Text>
-        <Text style={[s.infoLbl, { color: colors.textMuted }]}>{item.label}</Text>
-      </View>
-    ))}
-  </View>
+              {/* Info Row */}
+              <View style={[s.infoRow, { borderTopColor: colors.border }]}>
+                {[
+                  { label: 'النوع', value: machine.type       ?? '—', icon: 'construct-outline' as const },
+                  { label: 'القسم', value: machine.department ?? '—', icon: 'business-outline'  as const },
+                ].map((item, i) => (
+                  <View key={i} style={[s.infoItem, i === 0 && { borderRightWidth: 1, borderRightColor: colors.border }]}>
+                    <Ionicons name={item.icon} size={14} color={colors.textMuted} />
+                    <Text style={[s.infoVal, { color: colors.textPrimary }]}>{item.value}</Text>
+                    <Text style={[s.infoLbl, { color: colors.textMuted }]}>{item.label}</Text>
+                  </View>
+                ))}
+              </View>
 
-  {/* عطل معلق */}
-  {hasFault && (
-    <View style={[s.faultBanner, { backgroundColor: colors.warning + '15', borderColor: colors.warning + '40' }]}>
-      <Text style={[s.faultDesc, { color: colors.textPrimary }]} numberOfLines={2}>{fault!.description}</Text>
-      <View style={s.faultLabel}>
-        <Ionicons name="warning-outline" size={13} color={colors.warning} />
-        <Text style={[s.faultLabelTxt, { color: colors.warning }]}>عطل معلق — جاري الإصلاح</Text>
-      </View>
-    </View>
-  )}
-</View>
+              {/* عطل معلق */}
+              {hasFault && (
+                <View style={[s.faultBanner, { backgroundColor: colors.warning + '15', borderColor: colors.warning + '40' }]}>
+                  <Text style={[s.faultDesc, { color: colors.textPrimary }]} numberOfLines={2}>{fault!.description}</Text>
+                  <View style={s.faultLabel}>
+                    <Ionicons name="warning-outline" size={13} color={colors.warning} />
+                    <Text style={[s.faultLabelTxt, { color: colors.warning }]}>عطل معلق — جاري الإصلاح</Text>
+                  </View>
+                </View>
+              )}
+            </View>
 
             {/* ── أزرار التحكم ── */}
             <View style={s.controls}>
@@ -550,7 +496,7 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
   },
-  cardHead:    { padding: 10, gap: 6 , flexDirection: 'row-reverse' },
+  cardHead:    { padding: 10, gap: 6, flexDirection: 'row-reverse' },
   machineName: { fontSize: 22, fontWeight: '900', textAlign: 'right' },
   statusBadge: {
     flexDirection: 'row-reverse', alignItems: 'center', gap: 5,
@@ -578,5 +524,5 @@ const s = StyleSheet.create({
   dayTitle:    { fontSize: 11, fontWeight: '700', textAlign: 'right' },
   dayRow:      { flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
   dayVal:      { fontSize: 13, fontWeight: '600' },
-  machineImg: { width: '95%', height: '60%', borderRadius: Theme.radius.md, marginTop: 8, alignSelf:'center' },
+  machineImg:  { width: '95%', height: 200, borderRadius: Theme.radius.md, marginTop: 8, alignSelf: 'center' },
 });

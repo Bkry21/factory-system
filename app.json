@@ -11,17 +11,17 @@
       "userInterfaceStyle": "dark"
     },
     "android": {
-  "backgroundColor": "#0B0F1C",
-  "googleServicesFile": "./assets/google-services.json",
-  "adaptiveIcon": {
-    "backgroundColor": "#0B0F1C",
-    "foregroundImage": "./assets/android-icon-foreground.png",
-    "backgroundImage": "./assets/android-icon-background.png",
-    "monochromeImage": "./assets/android-icon-monochrome.png"
-  },
-  "predictiveBackGestureEnabled": false,
-  "package": "com.bkri.factorysystem"
-},
+      "backgroundColor": "#0B0F1C",
+      "googleServicesFile": "./assets/google-services.json",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0F1C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.bkri.factorysystem"
+    },
     "web": {
       "favicon": "./assets/favicon.png"
     },
@@ -37,27 +37,27 @@
       "url": "https://u.expo.dev/2a03c759-3310-4f10-ae26-dc0a39da709b"
     },
     "plugins": [
-  "expo-sharing",
-  [
-    "expo-splash-screen",
-    {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0B0F1C",
-      "imageWidth": 280
-    }
-  ],
-  "expo-font",
-  "expo-web-browser",
-  [
-    "expo-notifications",
-    {
-      "icon": "./assets/icon.png",
-      "color": "#0B0F1C",
-      "sounds": []
-    }
-  ]
-]
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0B0F1C",
+          "imageWidth": 280
+        }
+      ],
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0B0F1C",
+          "sounds": []
+        }
+      ],
+      "expo-secure-store"
+    ]
   }
-  
 }

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, RefreshControl, FlatList,
-  StatusBar, Animated, Modal, TextInput, Alert, ScrollView,
+  StatusBar, Modal, TextInput, ScrollView,
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,90 +15,47 @@ import { useAppTheme }    from '../../context/ThemeContext';
 import { machineService } from '../../services/machineService';
 import { faultService }   from '../../services/faultService';
 import AppHeader, { HeaderBtn } from '../../components/ui/AppHeader';
-import Card          from '../../components/ui/Card';
 import StatusBadge   from '../../components/ui/StatusBadge';
-import StatCard      from '../../components/ui/StatCard';
-import SectionTitle  from '../../components/ui/SectionTitle';
 import EmptyState    from '../../components/ui/EmptyState';
 import PhotoPicker   from '../../components/form/PhotoPicker';
 import Theme  from '../../constants/theme';
 import type { Machine, Fault, MachineStatus } from '../../types';
 import { Dimensions } from 'react-native';
+import { useDialog } from '../../components/ui/AppDialog';
+import Toast, { ToastType } from '../../components/ui/Toast';
+import { timeAgo, timeAgoShort, formatTimer } from '../../utils/time';
+// ── ① الإضافتان الجديدتان ──────────────────────────────────────────────────
+import * as Haptics from 'expo-haptics';
+import { Audio } from 'expo-av';
 
 const { width: W } = Dimensions.get('window');
 
-// ── helpers ────────────────────────────────────────────────────────────────
-function timeAgo(iso: string): string {
-  if (!iso) return '';
-  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (m < 1)  return 'الآن';
-  if (m < 60) return `${m}د`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}س`;
-  return `${Math.floor(h / 24)}ي`;
+// ── ② دالة الصوت والهزة ────────────────────────────────────────────────────
+// ⚠️ أضف الملفين:  assets/sounds/start.mp3  /  assets/sounds/stop.mp3
+// وعدّل المسار النسبي حسب موقع هذا الملف في مشروعك
+let _audioReady = false;
+async function playFeedback(type: 'start' | 'stop') {
+  if (type === 'start') {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  } else {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+  }
+  try {
+    if (!_audioReady) {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      _audioReady = true;
+    }
+    const src = type === 'start'
+      ? require('../../../assets/sounds/start.mp3')
+      : require('../../../assets/sounds/stop.mp3');
+    const { sound } = await Audio.Sound.createAsync(src, { shouldPlay: true, volume: 0.85 });
+    sound.setOnPlaybackStatusUpdate(st => {
+      if (st.isLoaded && st.didJustFinish) sound.unloadAsync();
+    });
+  } catch (e) {
+    console.log('Audio error:', e);
+  }
 }
-
-function formatTimer(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-}
-
-// ── Toast ──────────────────────────────────────────────────────────────────
-type ToastType = 'start' | 'stop' | 'fault';
-
-function Toast({ message, type, colors }: { message: string | null; type: ToastType; colors: any }) {
-  const fade  = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(-20)).current;
-  const insets = useSafeAreaInsets();
-
-  useEffect(() => {
-    if (!message) return;
-    Animated.parallel([
-      Animated.timing(fade,  { toValue: 1, duration: 200, useNativeDriver: true }),
-      Animated.timing(slide, { toValue: 0, duration: 200, useNativeDriver: true }),
-    ]).start();
-    const t = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(fade,  { toValue: 0, duration: 200, useNativeDriver: true }),
-        Animated.timing(slide, { toValue: -20, duration: 200, useNativeDriver: true }),
-      ]).start();
-    }, 2600);
-    return () => clearTimeout(t);
-  }, [message]);
-
-  if (!message) return null;
-
-  const color = type === 'start' ? colors.success : type === 'stop' ? colors.danger : colors.warning;
-  const icon: keyof typeof Ionicons.glyphMap =
-    type === 'start' ? 'play' : type === 'stop' ? 'square' : 'warning';
-
-  return (
-    <Animated.View style={[
-      ts.wrap,
-      { opacity: fade, transform: [{ translateY: slide }], top: insets.top + 60, backgroundColor: colors.surface, borderColor: colors.border },
-    ]}>
-      <View style={[ts.icon, { backgroundColor: color }]}>
-        <Ionicons name={icon} size={13} color="#fff" />
-      </View>
-      <Text style={[ts.text, { color: colors.textPrimary }]}>{message}</Text>
-    </Animated.View>
-  );
-}
-
-const ts = StyleSheet.create({
-  wrap: {
-    position: 'absolute', alignSelf: 'center', zIndex: 999,
-    flexDirection: 'row-reverse', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderRadius: 999, gap: 10,
-    borderWidth: 1,
-  },
-  icon: { width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  text: { fontSize: 13, fontWeight: '700' },
-});
-
 
 // ── Shift Photo Modal ──────────────────────────────────────────────────────
 function ShiftPhotoModal({
@@ -111,48 +68,34 @@ function ShiftPhotoModal({
   colors: any;
 }) {
   const [photo, setPhoto] = useState('');
+  const { show: showDialog, dialog } = useDialog();
 
   const pickFromGallery = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('تنبيه', 'يرجى السماح بالوصول للمعرض');
-      return;
-    }
+    if (!perm.granted) { showDialog('warning', 'تنبيه', 'يرجى السماح بالوصول للمعرض'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 0.8 });
-    if (!result.canceled && result.assets[0]) {
-      setPhoto(result.assets[0].uri);
-    }
+    if (!result.canceled && result.assets[0]) setPhoto(result.assets[0].uri);
   };
 
   const takeCameraPhoto = async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('تنبيه', 'يرجى السماح بالوصول للكاميرا');
-      return;
-    }
+    if (!perm.granted) { showDialog('warning', 'تنبيه', 'يرجى السماح بالوصول للكاميرا'); return; }
     const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
-    if (!result.canceled && result.assets[0]) {
-      setPhoto(result.assets[0].uri);
-    }
+    if (!result.canceled && result.assets[0]) setPhoto(result.assets[0].uri);
   };
 
   const handleSubmit = async () => {
-    if (!photo) {
-      Alert.alert('تنبيه', 'يرجى التقاط صورة');
-      return;
-    }
+    if (!photo) { showDialog('warning', 'تنبيه', 'يرجى التقاط صورة'); return; }
     try {
       await onCapture(photo);
       setPhoto('');
       onClose();
     } catch (e: any) {
-      Alert.alert('خطأ', e?.message || 'فشل رفع الصورة');
+      showDialog('error', 'خطأ', e?.message || 'فشل رفع الصورة');
     }
   };
 
-  useEffect(() => {
-    if (!visible) setPhoto('');
-  }, [visible]);
+  useEffect(() => { if (!visible) setPhoto(''); }, [visible]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -168,10 +111,7 @@ function ShiftPhotoModal({
           {photo ? (
             <View style={spm.photoWrap}>
               <Image source={{ uri: photo }} style={spm.photo} />
-              <TouchableOpacity
-                style={[spm.retakeBtn, { backgroundColor: colors.warning }]}
-                onPress={takeCameraPhoto}
-              >
+              <TouchableOpacity style={[spm.retakeBtn, { backgroundColor: colors.warning }]} onPress={takeCameraPhoto}>
                 <Ionicons name="camera" size={16} color="#fff" />
                 <Text style={spm.retakeBtnText}>إعادة التصوير</Text>
               </TouchableOpacity>
@@ -215,26 +155,27 @@ function ShiftPhotoModal({
           </TouchableOpacity>
         </View>
       </View>
+      {dialog}
     </Modal>
   );
 }
 
 const spm = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  dialog: { width: '100%', borderRadius: Theme.radius.lg, padding: 16, borderWidth: 1, gap: 16 },
-  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 16, fontWeight: '700' },
-  photoWrap: { gap: 12 },
-  photo: { width: '100%', height: 200, borderRadius: Theme.radius.md },
-  retakeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: Theme.radius.md },
-  retakeBtnText: { color: '#fff', fontWeight: '700' },
-  pickRow: { flexDirection: 'row', gap: 10 },
+  backdrop:        { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  dialog:          { width: '100%', borderRadius: Theme.radius.lg, padding: 16, borderWidth: 1, gap: 16 },
+  head:            { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title:           { fontSize: 16, fontWeight: '700' },
+  photoWrap:       { gap: 12 },
+  photo:           { width: '100%', height: 200, borderRadius: Theme.radius.md },
+  retakeBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: Theme.radius.md },
+  retakeBtnText:   { color: '#fff', fontWeight: '700' },
+  pickRow:         { flexDirection: 'row', gap: 10 },
   cameraPlaceholder: { height: 200, borderRadius: Theme.radius.md, borderWidth: 2, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', gap: 6 },
-  cameraIcon: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
-  cameraText: { fontSize: 14, fontWeight: '700' },
-  cameraSubText: { fontSize: 12 },
-  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: Theme.radius.md },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  cameraIcon:      { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
+  cameraText:      { fontSize: 14, fontWeight: '700' },
+  cameraSubText:   { fontSize: 12 },
+  btn:             { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: Theme.radius.md },
+  btnText:         { color: '#fff', fontWeight: '700', fontSize: 14 },
 });
 
 // ── Machine Card ───────────────────────────────────────────────────────────
@@ -253,32 +194,34 @@ function MachineCard({
   fullWidth?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
+  const { show: showDialog, dialog } = useDialog();
 
-  // المشرف فقط يتحكم ويبلّغ عن أعطال
   const isSupervisor = userRole === 'supervisor';
 
-const start = async () => {
-  setBusy(true);
-  try {
-    await machineService.start(machine.id);
-    onUpdated({ ...machine, status: 'running', lastUpdated: new Date().toISOString() });
-    onToast(`تم تشغيل ${machine.name}`, 'start');
-  } catch (e: any) {
-    Alert.alert('خطأ', 'تعذر تشغيل الماكينة');
-  }
-  finally { setBusy(false); }
-};
+  // ── ③ start وstop مع playFeedback ─────────────────────────────────────
+  const start = async () => {
+    playFeedback('start');          // هزة + صوت فوري — fire & forget
+    setBusy(true);
+    try {
+      await machineService.start(machine.id);
+      onUpdated({ ...machine, status: 'running', lastUpdated: new Date().toISOString() });
+      onToast(`تم تشغيل ${machine.name}`, 'success');
+    } catch (e: any) {
+      showDialog('error', 'خطأ', 'تعذر تشغيل الماكينة');
+    } finally { setBusy(false); }
+  };
 
-// ✅ stop
-const stop = async () => {
-  setBusy(true);
-  try {
-    await machineService.stop(machine.id);
-    onUpdated({ ...machine, status: 'stopped', lastUpdated: new Date().toISOString() });
-    onToast(`تم إيقاف ${machine.name}`, 'stop');
-  } catch { Alert.alert('خطأ', 'تعذر إيقاف الماكينة'); }
-  finally { setBusy(false); }
-};
+  const stop = async () => {
+    playFeedback('stop');           // هزة ثقيلة + صوت إيقاف — fire & forget
+    setBusy(true);
+    try {
+      await machineService.stop(machine.id);
+      onUpdated({ ...machine, status: 'stopped', lastUpdated: new Date().toISOString() });
+      onToast(`تم إيقاف ${machine.name}`, 'error');
+    } catch {
+      showDialog('error', 'خطأ', 'تعذر إيقاف الماكينة');
+    } finally { setBusy(false); }
+  };
 
   const isFaulted = !!fault;
   const isRunning = machine.status === 'running';
@@ -291,19 +234,12 @@ const stop = async () => {
       onPress={onPress}
       activeOpacity={0.85}
     >
-      {/* ── Background image / fallback ── */}
       {machine.image
         ? <Image source={{ uri: machine.image }} style={mc.bg} />
         : <View style={[mc.bg, mc.bgFallback]} />
       }
-
-      {/* ── Dark overlay ── */}
       <View style={mc.overlay} />
-
-      {/* ── Content ── */}
       <View style={mc.content}>
-
-        {/* Top row: status badge + room + time */}
         <View style={mc.topRow}>
           <View style={[mc.statusBadge, { backgroundColor: glowColor + '33', borderColor: glowColor + '70' }]}>
             <View style={[mc.dot, { backgroundColor: glowColor }]} />
@@ -315,14 +251,11 @@ const stop = async () => {
             <View style={mc.roomBadge}>
               <Text style={mc.roomTxt}>{machine.department?.slice(0, 3)}</Text>
             </View>
-            <Text style={mc.time}>{timeAgo(machine.lastUpdated)}</Text>
+            <Text style={mc.time}>{timeAgoShort(machine.lastUpdated)}</Text>
           </View>
         </View>
 
-        {/* Bottom: name + tags + actions */}
         <View style={mc.bottom}>
-          
-
           <View style={mc.tags}>
             {machine.type ? (
               <View style={mc.tag}><Text style={mc.tagTxt}>{machine.type}</Text></View>
@@ -340,7 +273,6 @@ const stop = async () => {
               <Text style={mc.faultTxt} numberOfLines={1}>{fault.description}</Text>
             </View>
           ) : isSupervisor ? (
-            /* المشرف فقط: زر إبلاغ + تشغيل/إيقاف */
             <View style={mc.controls}>
               <TouchableOpacity style={mc.btnFault} onPress={() => onFault(machine)}>
                 <Ionicons name="build-outline" size={11} color="#FAC775" />
@@ -364,9 +296,10 @@ const stop = async () => {
                 </TouchableOpacity>
               )}
             </View>
-          ) : null /* باقي الأدوار: لا أزرار */}
+          ) : null}
         </View>
       </View>
+      {dialog}
     </TouchableOpacity>
   );
 }
@@ -384,170 +317,33 @@ const mc = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
-  bg: {
-    ...StyleSheet.absoluteFill,
-    width: '100%',
-    height: '100%',
-  },
-  overlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  bgFallback: {
-    backgroundColor: '#1a1a2a',
-  },
-  content: {
-    flex: 1,
-    padding: 9,
-    justifyContent: 'space-between',
-  },
-  topRow: {
-    flexDirection: 'row-reverse',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  statusBadge: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusTxt: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  topRight: {
-    alignItems: 'flex-end',
-    gap: 3,
-  },
-  roomBadge: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 999,
-  },
-  roomTxt: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  time: {
-    fontSize: 9,
-    color: 'rgba(255,255,255,0.55)',
-    fontWeight: '600',
-  },
-  bottom: {
-    gap: 5,
-  },
-
-  tags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 3,
-  },
-  tag: {
-    backgroundColor: '#000',
-    borderRadius: 999,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.25)',
-  },
-  tagTxt: {
-    fontSize: 9,
-    color: 'rgba(255,255,255,0.85)',
-    fontWeight: '600',
-  },
-  divider: {
-    height: 0.5,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  controls: {
-    flexDirection: 'row',
-    gap: 5,
-    alignItems: 'center',
-  },
-  btnFault: {
-    flex: 1,
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'black' ,
-    backgroundColor: 'orange',
-  },
-  btnFaultTxt: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: 'white',
-  },
-  btnStart: {
-    flex: 1,
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: 'green',
-  },
-  btnStop: {
-    flex: 1,
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: 'red',
-  },
-  btnTxt: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#fff',
-  },
-  statusPill: {
-    flex: 1,
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  statusPillTxt: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  faultBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: 8,
-    padding: 6,
-    borderWidth: 1,
-  },
-  faultTxt: {
-    flex: 1,
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#fff',
-    textAlign: 'right',
-  },
+  bg:          { ...StyleSheet.absoluteFill, width: '100%', height: '100%' },
+  overlay:     { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.45)' },
+  bgFallback:  { backgroundColor: '#1a1a2a' },
+  content:     { flex: 1, padding: 9, justifyContent: 'space-between' },
+  topRow:      { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'flex-start' },
+  statusBadge: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1 },
+  dot:         { width: 6, height: 6, borderRadius: 3 },
+  statusTxt:   { fontSize: 10, fontWeight: '700', color: '#fff' },
+  topRight:    { alignItems: 'flex-end', gap: 3 },
+  roomBadge:   { backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
+  roomTxt:     { fontSize: 10, fontWeight: '700', color: '#fff' },
+  time:        { fontSize: 9, color: 'rgba(255,255,255,0.55)', fontWeight: '600' },
+  bottom:      { gap: 5 },
+  tags:        { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
+  tag:         { backgroundColor: '#000', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.25)' },
+  tagTxt:      { fontSize: 9, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
+  divider:     { height: 0.5, backgroundColor: 'rgba(255,255,255,0.2)' },
+  controls:    { flexDirection: 'row', gap: 5, alignItems: 'center' },
+  btnFault:    { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: 'black', backgroundColor: 'orange' },
+  btnFaultTxt: { fontSize: 10, fontWeight: '900', color: 'white' },
+  btnStart:    { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 5, borderRadius: 8, backgroundColor: 'green' },
+  btnStop:     { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 5, borderRadius: 8, backgroundColor: 'red' },
+  btnTxt:      { fontSize: 10, fontWeight: '900', color: '#fff' },
+  statusPill:  { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
+  statusPillTxt: { fontSize: 10, fontWeight: '700', color: '#fff' },
+  faultBox:    { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, padding: 6, borderWidth: 1 },
+  faultTxt:    { flex: 1, fontSize: 10, fontWeight: '700', color: '#fff', textAlign: 'right' },
 });
 
 // ── Fault Modal ────────────────────────────────────────────────────────────
@@ -562,13 +358,14 @@ function FaultModal({
   const [desc,    setDesc]    = useState('');
   const [photo,   setPhoto]   = useState('');
   const [loading, setLoading] = useState(false);
+  const { show: showDialog, dialog } = useDialog();
 
   useEffect(() => { if (!machine) { setDesc(''); setPhoto(''); } }, [machine]);
 
   if (!machine) return null;
 
   const submit = async () => {
-    if (!desc.trim()) { Alert.alert('تنبيه', 'اكتب وصف العطل'); return; }
+    if (!desc.trim()) { showDialog('warning', 'تنبيه', 'اكتب وصف العطل'); return; }
     setLoading(true);
     try {
       await faultService.create({
@@ -578,7 +375,7 @@ function FaultModal({
       });
       onSuccess(`تم تسجيل عطل: ${machine.name}`);
       onClose();
-    } catch { Alert.alert('خطأ', 'فشل رفع البلاغ'); }
+    } catch { showDialog('error', 'خطأ', 'فشل رفع البلاغ'); }
     finally { setLoading(false); }
   };
 
@@ -592,9 +389,7 @@ function FaultModal({
             </TouchableOpacity>
             <Text style={[fm.title, { color: colors.textPrimary }]}>إبلاغ عن عطل</Text>
           </View>
-
           <Text style={[fm.machine, { color: colors.warning }]}>{machine.name}</Text>
-
           <TextInput
             style={[fm.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.textPrimary }]}
             placeholder="اكتب وصف العطل..."
@@ -603,14 +398,7 @@ function FaultModal({
             value={desc} onChangeText={setDesc}
             textAlign="right"
           />
-
-          <PhotoPicker
-            uri={photo}
-            onChange={setPhoto}
-            label="صورة العطل (اختياري)"
-            required={false}
-          />
-
+          <PhotoPicker uri={photo} onChange={setPhoto} label="صورة العطل (اختياري)" required={false} />
           <TouchableOpacity
             style={[fm.btn, { backgroundColor: colors.warning }, loading && { opacity: 0.6 }]}
             onPress={submit} disabled={loading}
@@ -622,6 +410,7 @@ function FaultModal({
           </TouchableOpacity>
         </View>
       </View>
+      {dialog}
     </Modal>
   );
 }
@@ -657,7 +446,6 @@ function DiagSheet({
               <Text style={[ds.dept, { color: colors.textMuted }]}>{machine.department}</Text>
             </View>
           </View>
-
           <ScrollView style={{ maxHeight: 250 }} showsVerticalScrollIndicator={false}>
             <Text style={[ds.sec, { color: colors.textMuted }]}>سجل الأعطال</Text>
             {history.length === 0 ? (
@@ -669,7 +457,6 @@ function DiagSheet({
               </View>
             ))}
           </ScrollView>
-
           <TouchableOpacity style={[ds.closeBtn, { backgroundColor: colors.primary }]} onPress={onClose}>
             <Text style={ds.closeTxt}>إغلاق</Text>
           </TouchableOpacity>
@@ -695,33 +482,25 @@ const ds = StyleSheet.create({
   closeTxt: { color: '#fff', fontWeight: '700' },
 });
 
-// ══════════════════════════════════════════════════════════════════════════
-// MAIN SCREEN
-// ══════════════════════════════════════════════════════════════════════════
+// ── Main Screen ────────────────────────────────────────────────────────────
 export default function MachinesScreen() {
-const { user, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
 
-  const isSupervisor = user?.role === 'supervisor';
-  const isManager    = user?.role === 'factory_manager';
+  const isManager = user?.role === 'factory_manager';
 
-  const [machines, setMachines] = useState<Machine[]>([]);
-  const [faults, setFaults] = useState<Fault[]>([]);
+  const [machines,   setMachines]   = useState<Machine[]>([]);
+  const [faults,     setFaults]     = useState<Fault[]>([]);
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>('grid');
- 
-
-
-  const [loading, setLoading] = useState(true);
+  const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<MachineStatus | 'all'>('all');
-
-
-  const [selected, setSelected] = useState<Machine | null>(null);
-  const [faultMach, setFaultMach] = useState<Machine | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const [toastType, setToastType] = useState<ToastType>('start');
+  const [search,     setSearch]     = useState('');
+  const [filter,     setFilter]     = useState<MachineStatus | 'all'>('all');
+  const [selected,   setSelected]   = useState<Machine | null>(null);
+  const [faultMach,  setFaultMach]  = useState<Machine | null>(null);
+  const [toast,      setToast]      = useState<string | null>(null);
+  const [toastType,  setToastType]  = useState<ToastType>('success');
 
   const showToast = (msg: string, type: ToastType) => {
     setToastType(type);
@@ -729,20 +508,18 @@ const { user, logout } = useAuth();
     setTimeout(() => setToast(null), 3000);
   };
 
-const initialLoad = useCallback(async () => {
-  try {
-    const dept = isManager ? undefined : user?.department;
-    const [m, f] = await Promise.all([
-      machineService.getAll(dept),
-      faultService.getAll({ status: 'pending' }),
-    ]);
-    setMachines(m ?? []);
-    setFaults(f ?? []);
-  } catch (e) { /* silent */ }
-  finally { setLoading(false); }
-}, [isManager, user?.department]);
-
-
+  const initialLoad = useCallback(async () => {
+    try {
+      const dept = isManager ? undefined : user?.department;
+      const [m, f] = await Promise.all([
+        machineService.getAll(dept),
+        faultService.getAll({ status: 'pending' }),
+      ]);
+      setMachines(m ?? []);
+      setFaults(f ?? []);
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, [isManager, user?.department]);
 
   const refreshData = useCallback(async () => {
     try {
@@ -753,7 +530,7 @@ const initialLoad = useCallback(async () => {
       ]);
       setMachines(m ?? []);
       setFaults(f ?? []);
-  } catch (e) { /* silent */ }
+    } catch { /* silent */ }
     finally { setRefreshing(false); }
   }, [isManager, user?.department]);
 
@@ -802,21 +579,18 @@ const initialLoad = useCallback(async () => {
       <AppHeader
         title="الماكينات"
         subtitle={`${machines.length} ماكينة`}
-          left={
-    <HeaderBtn
-      icon={layoutMode === 'grid' ? 'list-outline' : 'grid-outline'}
-      onPress={() => setLayoutMode((m: any) => m === 'grid' ? 'list' : 'grid')}
-    />
-  }
+        left={
+          <HeaderBtn
+            icon={layoutMode === 'grid' ? 'list-outline' : 'grid-outline'}
+            onPress={() => setLayoutMode((m: any) => m === 'grid' ? 'list' : 'grid')}
+          />
+        }
         right={
           <HeaderBtn
             icon="log-out-outline"
             color={colors.danger}
             bg={colors.danger + '15'}
-            onPress={() => Alert.alert('تسجيل الخروج', 'هل أنت متأكد؟', [
-              { text: 'إلغاء', style: 'cancel' },
-              { text: 'خروج', style: 'destructive', onPress: logout },
-            ])}
+            onPress={logout}
           />
         }
       />
@@ -847,78 +621,57 @@ const initialLoad = useCallback(async () => {
       </View>
 
       <FlatList
-  data={visible}
-  keyExtractor={item => item.id}
-  key={layoutMode}
-  numColumns={layoutMode === 'grid' ? 2 : 1}
-  columnWrapperStyle={layoutMode === 'grid' ? s.gridRow : undefined}
-  contentContainerStyle={s.listPad}
-  showsVerticalScrollIndicator={false}
-  refreshControl={
-    <RefreshControl
-      refreshing={refreshing}
-      onRefresh={() => { setRefreshing(true); refreshData(); }}
-      tintColor={colors.primary}
-    />
-  }
-  renderItem={({ item }) => (
-    <MachineCard
-      machine={item}
-      fault={faults.find(f => f.machineId === item.id)}
-      
-      userRole={user?.role}
-      onPress={() => setSelected(item)}
-      onUpdated={upd => setMachines(prev => prev.map(m => m.id === upd.id ? upd : m))}
-      onToast={showToast}
-      onFault={setFaultMach}
-      colors={colors}
-      fullWidth={layoutMode === 'list'}
-    />
-  )}
-  ListEmptyComponent={
-    <EmptyState
-      icon="hardware-chip-outline"
-      title="لا توجد ماكينات"
-      sub="لا توجد ماكينات مطابقة للبحث"
-    />
-  }
-/>
-
-      <DiagSheet
-        machine={selected}
-        faults={faults}
-        onClose={() => setSelected(null)}
-        colors={colors}
+        data={visible}
+        keyExtractor={item => item.id}
+        key={layoutMode}
+        numColumns={layoutMode === 'grid' ? 2 : 1}
+        columnWrapperStyle={layoutMode === 'grid' ? s.gridRow : undefined}
+        contentContainerStyle={s.listPad}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); refreshData(); }}
+            tintColor={colors.primary}
+          />
+        }
+        renderItem={({ item }) => (
+          <MachineCard
+            machine={item}
+            fault={faults.find(f => f.machineId === item.id)}
+            userRole={user?.role}
+            onPress={() => setSelected(item)}
+            onUpdated={upd => setMachines(prev => prev.map(m => m.id === upd.id ? upd : m))}
+            onToast={showToast}
+            onFault={setFaultMach}
+            colors={colors}
+            fullWidth={layoutMode === 'list'}
+          />
+        )}
+        ListEmptyComponent={
+          <EmptyState
+            icon="hardware-chip-outline"
+            title="لا توجد ماكينات"
+            sub="لا توجد ماكينات مطابقة للبحث"
+          />
+        }
       />
 
-      <FaultModal
-        machine={faultMach}
-        
-        onClose={() => setFaultMach(null)}
-        onSuccess={msg => showToast(msg, 'fault')}
-        colors={colors}
-      />
+      <DiagSheet machine={selected} faults={faults} onClose={() => setSelected(null)} colors={colors} />
+      <FaultModal machine={faultMach} onClose={() => setFaultMach(null)} onSuccess={msg => showToast(msg, 'warning')} colors={colors} />
       <Toast message={toast} type={toastType} colors={colors} />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
-  statsRow: { flexDirection: 'row-reverse', gap: 6, paddingHorizontal: 16, marginTop: 12 },
-  statChip: {
-    flex: 1, borderRadius: Theme.radius.md, borderWidth: 1,
-    paddingVertical: 8, alignItems: 'center', gap: 2,
-  },
-  statVal: { fontSize: 18, fontWeight: '900' },
-  statLbl: { fontSize: 10 },
-  searchWrap: {
-    flexDirection: 'row-reverse', alignItems: 'center', gap: 8,
-    marginHorizontal: 16, marginTop: 10, marginBottom: 4,
-    paddingHorizontal: 12, height: 40,
-    borderRadius: Theme.radius.md, borderWidth: 1,
-  },
+  root:       { flex: 1 },
+  statsRow:   { flexDirection: 'row-reverse', gap: 6, paddingHorizontal: 16, marginTop: 12 },
+  statChip:   { flex: 1, borderRadius: Theme.radius.md, borderWidth: 1, paddingVertical: 8, alignItems: 'center', gap: 2 },
+  statVal:    { fontSize: 18, fontWeight: '900' },
+  statLbl:    { fontSize: 10 },
+  searchWrap: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 10, marginBottom: 4, paddingHorizontal: 12, height: 40, borderRadius: Theme.radius.md, borderWidth: 1 },
   searchInput: { flex: 1, fontSize: 13 },
-  gridRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', paddingHorizontal: 16 },
-  listPad: { paddingBottom: 130, paddingTop: 8 },
+  gridRow:    { flexDirection: 'row-reverse', justifyContent: 'space-between', paddingHorizontal: 16 },
+  listPad:    { paddingBottom: 130, paddingTop: 8 },
 });

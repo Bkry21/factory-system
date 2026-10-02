@@ -18,20 +18,31 @@ const map = (f: any): Fault => ({
   beforePhoto:     f.before_photo_url ?? f.before_photo ?? '',
   afterPhoto:      f.after_photo_url  ?? f.after_photo  ?? undefined,
   resolutionNotes: f.resolution_notes ?? '',
+  department:      f.department ?? undefined,
 });
 
 export const faultService = {
 
-  getAll: async (filters?: { status?: string; machineId?: string; department?: string }): Promise<Fault[]> => {
+  getAll: async (filters?: {
+    status?:     string;
+    machineId?:  string;
+    // department مش مدعوم في الـ backend — نحذفه من الـ query
+    // ونفلتر على الـ client بعد الجلب
+    department?: string;
+  }): Promise<Fault[]> => {
     const params: any = {};
-    if (filters?.status)     params.status     = filters.status;
-    if (filters?.machineId)  params.machine    = filters.machineId;
-    if (filters?.department) params.department = filters.department;
+    if (filters?.status)    params.status  = filters.status;
+    if (filters?.machineId) params.machine = filters.machineId;
+    // لا نبعت department للـ backend — الـ FaultViewSet ما يدعمه
     const { data } = await api.get('/faults/', { params });
-    return data.map(map);
+    const faults = data.map(map);
+    // نفلتر على الـ client إذا طُلب
+    if (filters?.department) {
+      return faults.filter((f: Fault) => f.department === filters.department);
+    }
+    return faults;
   },
 
-  // ✅ حذف shiftId كامل
   create: async (payload: {
     machineId:    string;
     description:  string;

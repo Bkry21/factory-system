@@ -11,7 +11,6 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   Image,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -19,6 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppTheme } from '../../context/ThemeContext';
+import { useDialog } from '../../components/ui/AppDialog';
+import Toast, { ToastType } from '../../components/ui/Toast';
 import { productionService } from '../../services/productionService';
 import Theme from '../../constants/theme';
 import type { Production, RawMaterialUsed } from '../../types';
@@ -28,7 +29,9 @@ const today = () => new Date().toISOString().split('T')[0];
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('ar-EG', {
-    weekday: 'short', month: 'short', day: 'numeric',
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
   });
 }
 
@@ -40,29 +43,32 @@ function progressColor(rate: number): string {
 
 function ProgressBar({ rate }: { rate: number }) {
   const clamped = Math.min(rate, 100);
-  const color   = progressColor(rate);
+  const color = progressColor(rate);
   return (
     <View style={{ gap: 6 }}>
       <View style={{ height: 10, backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: 5, overflow: 'hidden' }}>
         <View style={{ height: '100%', borderRadius: 5, width: `${clamped}%`, backgroundColor: color }} />
       </View>
-      <Text style={{ fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.bold, textAlign: 'right', color }}>{rate}%</Text>
+      <Text style={{ fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.bold, textAlign: 'right', color }}>
+        {rate}%
+      </Text>
     </View>
   );
 }
 
 function TodayCard({ production, onEdit }: { production: Production; onEdit: () => void }) {
   const { colors } = useAppTheme();
-  const rate        = Math.round((production.actualQuantity / production.targetQuantity) * 100);
+  const rate = Math.round((production.actualQuantity / production.targetQuantity) * 100);
   const netQuantity = production.actualQuantity - production.rejectedQuantity;
-  const color       = progressColor(rate);
+  const color = progressColor(rate);
 
   return (
     <View style={[todayStyles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
       <View style={[todayStyles.header, { borderBottomColor: colors.borderLight }]}>
         <TouchableOpacity
           style={[todayStyles.editBtn, { backgroundColor: colors.background, borderColor: colors.border }]}
-          onPress={onEdit} activeOpacity={0.8}
+          onPress={onEdit}
+          activeOpacity={0.8}
         >
           <Ionicons name="create-outline" size={15} color={colors.primary} />
           <Text style={[todayStyles.editText, { color: colors.primary }]}>تعديل السجل</Text>
@@ -82,16 +88,38 @@ function TodayCard({ production, onEdit }: { production: Production; onEdit: () 
             الهدف المخطط:{' '}
             <Text style={{ fontWeight: Theme.fontWeight.bold, color: colors.textPrimary }}>
               {production.targetQuantity.toLocaleString('ar-EG')}
-            </Text>{' '}وحدة
+            </Text>{' '}
+            وحدة
           </Text>
         </View>
         <ProgressBar rate={rate} />
       </View>
 
       <View style={todayStyles.grid}>
-        <StatBox label="الإنتاج الفعلي"  value={production.actualQuantity.toLocaleString('ar-EG')}  unit="وحدة" color={colors.primary}   icon="stats-chart-outline"    colors={colors} />
-        <StatBox label="المرفوضات"        value={production.rejectedQuantity.toLocaleString('ar-EG')} unit="وحدة" color={production.rejectedQuantity > 0 ? colors.danger : colors.textSecondary} icon="alert-circle-outline" colors={colors} />
-        <StatBox label="الصافي النهائي"   value={netQuantity.toLocaleString('ar-EG')}                unit="وحدة" color={colors.success}  icon="checkmark-circle-outline" colors={colors} />
+        <StatBox
+          label="الإنتاج الفعلي"
+          value={production.actualQuantity.toLocaleString('ar-EG')}
+          unit="وحدة"
+          color={colors.primary}
+          icon="stats-chart-outline"
+          colors={colors}
+        />
+        <StatBox
+          label="المرفوضات"
+          value={production.rejectedQuantity.toLocaleString('ar-EG')}
+          unit="وحدة"
+          color={production.rejectedQuantity > 0 ? colors.danger : colors.textSecondary}
+          icon="alert-circle-outline"
+          colors={colors}
+        />
+        <StatBox
+          label="الصافي النهائي"
+          value={netQuantity.toLocaleString('ar-EG')}
+          unit="وحدة"
+          color={colors.success}
+          icon="checkmark-circle-outline"
+          colors={colors}
+        />
       </View>
 
       {production.rawMaterialsUsed && production.rawMaterialsUsed.length > 0 && (
@@ -133,35 +161,35 @@ function StatBox({ label, value, unit, color, icon, colors }: {
 }
 
 const todayStyles = StyleSheet.create({
-  card:             { borderRadius: Theme.radius.lg, padding: Theme.spacing.lg, borderWidth: 1, ...Theme.shadow.md, marginBottom: Theme.spacing.md },
-  header:           { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: Theme.spacing.md, paddingBottom: Theme.spacing.sm, borderBottomWidth: 1 },
-  headerRight:      { alignItems: 'flex-end', gap: 2 },
-  title:            { fontSize: Theme.fontSize.lg, fontWeight: Theme.fontWeight.bold },
-  date:             { fontSize: Theme.fontSize.xs },
-  editBtn:          { flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: Theme.spacing.md, paddingVertical: 6, borderRadius: Theme.radius.md, borderWidth: 1 },
-  editText:         { fontSize: Theme.fontSize.xs, fontWeight: Theme.fontWeight.semiBold },
-  progressSection:  { borderRadius: Theme.radius.md, padding: Theme.spacing.md, marginBottom: Theme.spacing.md, gap: Theme.spacing.sm },
-  progressMeta:     { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
-  targetText:       { fontSize: Theme.fontSize.xs },
-  statusIndicator:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Theme.radius.sm },
+  card: { borderRadius: Theme.radius.lg, padding: Theme.spacing.lg, borderWidth: 1, ...Theme.shadow.md, marginBottom: Theme.spacing.md },
+  header: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: Theme.spacing.md, paddingBottom: Theme.spacing.sm, borderBottomWidth: 1 },
+  headerRight: { alignItems: 'flex-end', gap: 2 },
+  title: { fontSize: Theme.fontSize.lg, fontWeight: Theme.fontWeight.bold },
+  date: { fontSize: Theme.fontSize.xs },
+  editBtn: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: Theme.spacing.md, paddingVertical: 6, borderRadius: Theme.radius.md, borderWidth: 1 },
+  editText: { fontSize: Theme.fontSize.xs, fontWeight: Theme.fontWeight.semiBold },
+  progressSection: { borderRadius: Theme.radius.md, padding: Theme.spacing.md, marginBottom: Theme.spacing.md, gap: Theme.spacing.sm },
+  progressMeta: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
+  targetText: { fontSize: Theme.fontSize.xs },
+  statusIndicator: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Theme.radius.sm },
   statusIndicatorText: { fontSize: 10, fontWeight: Theme.fontWeight.bold, color: '#FFFFFF' },
-  grid:             { flexDirection: 'row-reverse', gap: Theme.spacing.sm, marginBottom: Theme.spacing.md },
-  statBox:          { flex: 1, borderRadius: Theme.radius.md, padding: Theme.spacing.sm, borderWidth: 1, justifyContent: 'space-between', minHeight: 76 },
-  statHeader:       { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
-  statLabel:        { fontSize: 10, fontWeight: Theme.fontWeight.medium },
-  statValue:        { fontSize: Theme.fontSize.md, fontWeight: Theme.fontWeight.bold },
-  statUnit:         { fontSize: 9, fontWeight: Theme.fontWeight.regular },
+  grid: { flexDirection: 'row-reverse', gap: Theme.spacing.sm, marginBottom: Theme.spacing.md },
+  statBox: { flex: 1, borderRadius: Theme.radius.md, padding: Theme.spacing.sm, borderWidth: 1, justifyContent: 'space-between', minHeight: 76 },
+  statHeader: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
+  statLabel: { fontSize: 10, fontWeight: Theme.fontWeight.medium },
+  statValue: { fontSize: Theme.fontSize.md, fontWeight: Theme.fontWeight.bold },
+  statUnit: { fontSize: 9, fontWeight: Theme.fontWeight.regular },
   materialsContainer: { borderTopWidth: 1, paddingTop: Theme.spacing.md, gap: Theme.spacing.sm },
-  materialsTitle:   { fontSize: Theme.fontSize.xs, fontWeight: Theme.fontWeight.semiBold, textAlign: 'right' },
-  materialsGrid:    { flexDirection: 'row-reverse', gap: Theme.spacing.sm },
-  materialCard:     { flex: 1, padding: Theme.spacing.sm, borderRadius: Theme.radius.md, borderWidth: 1, alignItems: 'flex-end', gap: 2 },
-  materialName:     { fontSize: Theme.fontSize.xs },
-  materialValue:    { fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.bold },
+  materialsTitle: { fontSize: Theme.fontSize.xs, fontWeight: Theme.fontWeight.semiBold, textAlign: 'right' },
+  materialsGrid: { flexDirection: 'row-reverse', gap: Theme.spacing.sm },
+  materialCard: { flex: 1, padding: Theme.spacing.sm, borderRadius: Theme.radius.md, borderWidth: 1, alignItems: 'flex-end', gap: 2 },
+  materialName: { fontSize: Theme.fontSize.xs },
+  materialValue: { fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.bold },
 });
 
 function HistoryCard({ production }: { production: Production }) {
   const { colors } = useAppTheme();
-  const rate  = Math.round((production.actualQuantity / production.targetQuantity) * 100);
+  const rate = Math.round((production.actualQuantity / production.targetQuantity) * 100);
   const color = progressColor(rate);
   return (
     <View style={[histStyles.wrap, { backgroundColor: colors.surface }]}>
@@ -181,20 +209,24 @@ function HistoryCard({ production }: { production: Production }) {
 }
 
 const histStyles = StyleSheet.create({
-  wrap:     { flexDirection: 'row-reverse', alignItems: 'center', gap: Theme.spacing.md, borderRadius: Theme.radius.md, padding: Theme.spacing.md, marginBottom: Theme.spacing.sm, ...Theme.shadow.sm },
-  date:     { fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.semiBold, textAlign: 'right' },
-  rate:     { fontSize: Theme.fontSize.lg, fontWeight: Theme.fontWeight.bold },
-  qty:      { fontSize: Theme.fontSize.xs },
+  wrap: { flexDirection: 'row-reverse', alignItems: 'center', gap: Theme.spacing.md, borderRadius: Theme.radius.md, padding: Theme.spacing.md, marginBottom: Theme.spacing.sm, ...Theme.shadow.sm },
+  date: { fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.semiBold, textAlign: 'right' },
+  rate: { fontSize: Theme.fontSize.lg, fontWeight: Theme.fontWeight.bold },
+  qty: { fontSize: Theme.fontSize.xs },
   rejected: { fontSize: Theme.fontSize.xs },
 });
 
+// ─── Entry Modal ──────────────────────────────────────────────────────────────
+// onToast مشترك مع الـ parent — لا يعرض alert محلي
+
 interface EntryModalProps {
-  visible: boolean;
-  existing: Production | null;
-  onClose: () => void;
-  onSave: (data: any) => Promise<void>;
-  department: string;
+  visible:      boolean;
+  existing:     Production | null;
+  onClose:      () => void;
+  onSave:       (data: any) => Promise<void>;
+  department:   string;
   supervisorId: string;
+  onToast:      (msg: string, type: ToastType) => void;
 }
 
 const DEFAULT_MATERIALS: RawMaterialUsed[] = [
@@ -203,16 +235,16 @@ const DEFAULT_MATERIALS: RawMaterialUsed[] = [
   { name: 'زبدة', quantity: 0, unit: 'شوال' },
 ];
 
-function EntryModal({ visible, existing, onClose, onSave, department, supervisorId }: EntryModalProps) {
+function EntryModal({ visible, existing, onClose, onSave, department, supervisorId, onToast }: EntryModalProps) {
   const { colors } = useAppTheme();
   const isEdit = !!existing;
 
-  const [target,    setTarget]    = useState('');
-  const [actual,    setActual]    = useState('');
-  const [rejected,  setRejected]  = useState('');
+  const [target,   setTarget]   = useState('');
+  const [actual,   setActual]   = useState('');
+  const [rejected, setRejected] = useState('');
   const [materials, setMaterials] = useState<RawMaterialUsed[]>(DEFAULT_MATERIALS);
-  const [photoUri,  setPhotoUri]  = useState('');
-  const [saving,    setSaving]    = useState(false);
+  const [photoUri, setPhotoUri] = useState('');
+  const [saving,   setSaving]   = useState(false);
 
   useEffect(() => {
     if (existing) {
@@ -222,8 +254,11 @@ function EntryModal({ visible, existing, onClose, onSave, department, supervisor
       setMaterials(existing.rawMaterialsUsed?.length ? existing.rawMaterialsUsed : DEFAULT_MATERIALS);
       setPhotoUri(existing.photoUrl ?? '');
     } else {
-      setTarget(''); setActual(''); setRejected('0');
-      setMaterials(DEFAULT_MATERIALS); setPhotoUri('');
+      setTarget('');
+      setActual('');
+      setRejected('0');
+      setMaterials(DEFAULT_MATERIALS);
+      setPhotoUri('');
     }
     setSaving(false);
   }, [existing, visible]);
@@ -235,7 +270,10 @@ function EntryModal({ visible, existing, onClose, onSave, department, supervisor
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
       const galleryPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!galleryPerm.granted) { Alert.alert('تنبيه', 'يرجى السماح بالوصول للكاميرا أو المعرض'); return; }
+      if (!galleryPerm.granted) {
+        onToast('يرجى السماح بالوصول للكاميرا أو المعرض', 'warning');
+        return;
+      }
       const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 0.7 });
       if (!result.canceled && result.assets[0]) setPhotoUri(result.assets[0].uri);
       return;
@@ -244,32 +282,35 @@ function EntryModal({ visible, existing, onClose, onSave, department, supervisor
     if (!result.canceled && result.assets[0]) setPhotoUri(result.assets[0].uri);
   };
 
-const validate = (): string | null => {
-  if (!target || Number(target) <= 0)    return 'أدخل الكمية المستهدفة';
-  if (!actual || Number(actual) < 0)     return 'أدخل الكمية الفعلية';
-  if (Number(rejected) > Number(actual)) return 'الكمية المرفوضة لا تتجاوز الفعلية';
-  return null;
-};
+  const validate = (): string | null => {
+    if (!target || Number(target) <= 0)           return 'أدخل الكمية المستهدفة الصحيحة';
+    if (!actual || Number(actual) < 0)             return 'أدخل الكمية الفعلية بشكل صحيح';
+    if (Number(rejected) > Number(actual))         return 'الكمية المرفوضة لا يمكن أن تتجاوز الإنتاج الفعلي';
+    return null;
+  };
 
   const handleSave = async () => {
     const err = validate();
-    if (err) { Alert.alert('تنبيه', err); return; }
+    if (err) { onToast(err, 'warning'); return; }
     setSaving(true);
     try {
       await onSave({
-  department,
-  date: today(),
-  targetQuantity:   Number(target),
-  actualQuantity:   Number(actual),
-  rejectedQuantity: Number(rejected) || 0,
-  rawMaterialsUsed: materials.filter(m => m.quantity > 0),
-  photoUrl:         photoUri || '',
-  supervisorId:     Number(supervisorId) || supervisorId,
-});
+        department,
+        date:             today(),
+        targetQuantity:   Number(target),
+        actualQuantity:   Number(actual),
+        rejectedQuantity: Number(rejected) || 0,
+        rawMaterialsUsed: materials.filter(m => m.quantity > 0),
+        photoUrl:         photoUri || '',
+        supervisorId:     Number(supervisorId) || supervisorId,
+      });
       onClose();
     } catch (e: any) {
-      Alert.alert('خطأ ' + (e?.response?.status || ''), JSON.stringify(e?.response?.data ?? e?.message));
-    } finally { setSaving(false); }
+      const msg = e?.response?.data?.message || e?.message || 'حدث خطأ أثناء حفظ البيانات';
+      onToast(msg, 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -283,7 +324,8 @@ const validate = (): string | null => {
           <View style={entryStyles.titleRow}>
             <TouchableOpacity
               style={[entryStyles.closeBtn, { backgroundColor: colors.background }]}
-              onPress={onClose} activeOpacity={0.8}
+              onPress={onClose}
+              activeOpacity={0.8}
             >
               <Ionicons name="close" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
@@ -332,7 +374,8 @@ const validate = (): string | null => {
 
             <TouchableOpacity
               style={[entryStyles.photoBtn, { borderColor: colors.border }]}
-              onPress={pickPhoto} activeOpacity={0.85}
+              onPress={pickPhoto}
+              activeOpacity={0.85}
             >
               {photoUri ? (
                 <>
@@ -355,7 +398,9 @@ const validate = (): string | null => {
 
             <TouchableOpacity
               style={[entryStyles.saveBtn, { backgroundColor: colors.primary }, saving && { opacity: 0.6 }]}
-              onPress={handleSave} disabled={saving} activeOpacity={0.85}
+              onPress={handleSave}
+              disabled={saving}
+              activeOpacity={0.85}
             >
               {saving ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
@@ -404,38 +449,41 @@ function NumField({ label, value, onChange, icon, placeholder, optional, colors 
 }
 
 const entryStyles = StyleSheet.create({
-  sheet:            { borderTopLeftRadius: Theme.radius.xl, borderTopRightRadius: Theme.radius.xl, paddingHorizontal: Theme.spacing.lg, paddingTop: Theme.spacing.sm, maxHeight: '92%' },
-  handle:           { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: Theme.spacing.md },
-  titleRow:         { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: Theme.spacing.lg },
-  title:            { fontSize: Theme.fontSize.xl, fontWeight: Theme.fontWeight.bold },
-  closeBtn:         { width: 36, height: 36, borderRadius: Theme.radius.full, justifyContent: 'center', alignItems: 'center' },
-  sectionTitleWrap: { flexDirection: 'row-reverse', alignItems: 'center', gap: Theme.spacing.sm, marginTop: Theme.spacing.md, marginBottom: Theme.spacing.sm },
-  sectionTitle:     { fontSize: Theme.fontSize.md, fontWeight: Theme.fontWeight.semiBold, textAlign: 'right' },
-  optionalTag:      { fontSize: 10, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Theme.radius.full },
-  fieldInput:       { flexDirection: 'row-reverse', alignItems: 'center', borderRadius: Theme.radius.md, borderWidth: 1.5, height: 50, paddingHorizontal: Theme.spacing.sm },
-  input:            { flex: 1, fontSize: Theme.fontSize.lg, height: '100%' },
-  preview:          { borderRadius: Theme.radius.md, padding: Theme.spacing.md, marginBottom: Theme.spacing.md, gap: 6, borderWidth: 1 },
-  previewLabel:     { fontSize: Theme.fontSize.xs, textAlign: 'right' },
-  materialRow:      { flexDirection: 'row-reverse', alignItems: 'center', gap: Theme.spacing.sm, marginBottom: Theme.spacing.sm },
-  materialName:     { flex: 1, fontSize: Theme.fontSize.md, textAlign: 'right' },
-  materialUnit:     { fontSize: Theme.fontSize.sm, width: 30, textAlign: 'right' },
-  materialInput:    { width: 80, borderRadius: Theme.radius.md, borderWidth: 1.5, paddingHorizontal: Theme.spacing.sm, height: 44, fontSize: Theme.fontSize.md, textAlign: 'right' },
-  photoBtn:         { borderRadius: Theme.radius.md, overflow: 'hidden', marginBottom: Theme.spacing.md, borderWidth: 1.5, borderStyle: 'dashed' },
-  photoPreview:     { width: '100%', height: 180 },
-  photoOverlay:     { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center', gap: 6 },
-  photoOverlayText: { color: '#FFFFFF', fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.semiBold },
-  photoPlaceholder: { height: 120, justifyContent: 'center', alignItems: 'center', gap: 6 },
-  photoIconWrap:    { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 2 },
+  sheet:               { borderTopLeftRadius: Theme.radius.xl, borderTopRightRadius: Theme.radius.xl, paddingHorizontal: Theme.spacing.lg, paddingTop: Theme.spacing.sm, maxHeight: '92%' },
+  handle:              { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: Theme.spacing.md },
+  titleRow:            { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: Theme.spacing.lg },
+  title:               { fontSize: Theme.fontSize.xl, fontWeight: Theme.fontWeight.bold },
+  closeBtn:            { width: 36, height: 36, borderRadius: Theme.radius.full, justifyContent: 'center', alignItems: 'center' },
+  sectionTitleWrap:    { flexDirection: 'row-reverse', alignItems: 'center', gap: Theme.spacing.sm, marginTop: Theme.spacing.md, marginBottom: Theme.spacing.sm },
+  sectionTitle:        { fontSize: Theme.fontSize.md, fontWeight: Theme.fontWeight.semiBold, textAlign: 'right' },
+  optionalTag:         { fontSize: 10, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Theme.radius.full },
+  fieldInput:          { flexDirection: 'row-reverse', alignItems: 'center', borderRadius: Theme.radius.md, borderWidth: 1.5, height: 50, paddingHorizontal: Theme.spacing.sm },
+  input:               { flex: 1, fontSize: Theme.fontSize.lg, height: '100%' },
+  preview:             { borderRadius: Theme.radius.md, padding: Theme.spacing.md, marginBottom: Theme.spacing.md, gap: 6, borderWidth: 1 },
+  previewLabel:        { fontSize: Theme.fontSize.xs, textAlign: 'right' },
+  materialRow:         { flexDirection: 'row-reverse', alignItems: 'center', gap: Theme.spacing.sm, marginBottom: Theme.spacing.sm },
+  materialName:        { flex: 1, fontSize: Theme.fontSize.md, textAlign: 'right' },
+  materialUnit:        { fontSize: Theme.fontSize.sm, width: 30, textAlign: 'right' },
+  materialInput:       { width: 80, borderRadius: Theme.radius.md, borderWidth: 1.5, paddingHorizontal: Theme.spacing.sm, height: 44, fontSize: Theme.fontSize.md, textAlign: 'right' },
+  photoBtn:            { borderRadius: Theme.radius.md, overflow: 'hidden', marginBottom: Theme.spacing.md, borderWidth: 1.5, borderStyle: 'dashed' },
+  photoPreview:        { width: '100%', height: 180 },
+  photoOverlay:        { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center', gap: 6 },
+  photoOverlayText:    { color: '#FFFFFF', fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.semiBold },
+  photoPlaceholder:    { height: 120, justifyContent: 'center', alignItems: 'center', gap: 6 },
+  photoIconWrap:       { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 2 },
   photoPlaceholderTitle: { fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.semiBold },
-  photoPlaceholderSub:   { fontSize: Theme.fontSize.xs },
-  saveBtn:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Theme.spacing.sm, borderRadius: Theme.radius.md, height: 52, marginTop: Theme.spacing.lg, ...Theme.shadow.sm },
-  saveBtnText:      { fontSize: Theme.fontSize.lg, fontWeight: Theme.fontWeight.bold, color: '#FFFFFF' },
+  photoPlaceholderSub: { fontSize: Theme.fontSize.xs },
+  saveBtn:             { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Theme.spacing.sm, borderRadius: Theme.radius.md, height: 52, marginTop: Theme.spacing.lg, ...Theme.shadow.sm },
+  saveBtnText:         { fontSize: Theme.fontSize.lg, fontWeight: Theme.fontWeight.bold, color: '#FFFFFF' },
 });
 
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
 export default function ProductionScreen() {
-  const { user } = useAuth();
+  const { user }   = useAuth();
   const { colors } = useAppTheme();
   const insets     = useSafeAreaInsets();
+  const { show: showDialog, dialog } = useDialog();
 
   const [todayProd,  setTodayProd]  = useState<Production | null>(null);
   const [history,    setHistory]    = useState<Production[]>([]);
@@ -443,6 +491,16 @@ export default function ProductionScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showModal,  setShowModal]  = useState(false);
   const [editTarget, setEditTarget] = useState<Production | null>(null);
+
+  // ── Shared Toast ──
+  const [toast,     setToast]     = useState<string | null>(null);
+  const [toastType, setToastType] = useState<ToastType>('success');
+
+  const showToast = useCallback((msg: string, type: ToastType = 'success') => {
+    setToastType(type);
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -457,51 +515,48 @@ export default function ProductionScreen() {
           .filter((p: Production) => p.date !== today())
           .sort((a: Production, b: Production) => new Date(b.date).getTime() - new Date(a.date).getTime())
       );
-    } catch (e) {
-     
+    } catch {
+      showDialog('error', 'خطأ', 'تعذر تحميل بيانات الإنتاج');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user]);
+  }, [user, showDialog]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const onRefresh = () => { setRefreshing(true); fetchData(); };
 
- const handleSave = useCallback(async (data: any) => {
-  try {
-    const payload = { ...data };
-    if (editTarget) {
-      const updated = await productionService.update(editTarget.id, payload);
-      setTodayProd(updated);
-    } else {
-      const created = await productionService.create(payload);
-      setTodayProd(created);
+  const handleSave = useCallback(async (data: any) => {
+    try {
+      if (editTarget) {
+        const updated = await productionService.update(editTarget.id, data);
+        setTodayProd(updated);
+        showToast('تم تعديل سجل الإنتاج بنجاح', 'success');
+      } else {
+        const created = await productionService.create(data);
+        setTodayProd(created);
+        showToast('تم تسجيل بيانات الإنتاج بنجاح', 'success');
+      }
+      setEditTarget(null);
+      setShowModal(false);
+    } catch (e) {
+      throw e; // EntryModal يعالجه ويعرضه عبر onToast
     }
-    setEditTarget(null);
-    setShowModal(false);
-  } catch (e: any) {
-    Alert.alert('خطأ ' + (e?.response?.status || ''), JSON.stringify(e?.response?.data ?? e?.message));
-    throw e;
-  }
-}, [editTarget]);
+  }, [editTarget, showToast]);
 
-   const openCreate = () => {
-     setEditTarget(null);
-     setShowModal(true);
-   };
+  const openCreate = () => { setEditTarget(null); setShowModal(true); };
 
   if (loading) {
     return (
-      <View style={[{ flex: 1, justifyContent: 'center', alignItems: 'center' }, { backgroundColor: colors.background }]}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <View style={[{ flex: 1 }, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
       <AppHeader
         title="الإنتاج"
         subtitle={user?.department ? `القسم: ${user.department}` : undefined}
@@ -509,7 +564,8 @@ export default function ProductionScreen() {
           !todayProd ? (
             <TouchableOpacity
               style={[styles.addBtnHeader, { backgroundColor: colors.success }]}
-              onPress={openCreate} activeOpacity={0.8}
+              onPress={openCreate}
+              activeOpacity={0.8}
             >
               <Ionicons name="add" size={18} color="#FFFFFF" />
               <Text style={styles.addBtnTextHeader}>إدخال اليوم</Text>
@@ -524,15 +580,19 @@ export default function ProductionScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
         {todayProd ? (
-          <TodayCard production={todayProd} onEdit={() => { setEditTarget(todayProd); setShowModal(true); }} />
+          <TodayCard
+            production={todayProd}
+            onEdit={() => { setEditTarget(todayProd); setShowModal(true); }}
+          />
         ) : (
           <TouchableOpacity
             style={[styles.emptyToday, { backgroundColor: colors.surface, borderColor: colors.primary + '30' }]}
-            onPress={openCreate} activeOpacity={0.85}
+            onPress={openCreate}
+            activeOpacity={0.85}
           >
             <Ionicons name="add-circle-outline" size={40} color={colors.primary} />
             <Text style={[styles.emptyTodayTitle, { color: colors.textPrimary }]}>لم يُدخل إنتاج اليوم بعد</Text>
-            <Text style={[styles.emptyTodayText,  { color: colors.textMuted }]}>اضغط لإدخال بيانات إنتاج اليوم</Text>
+            <Text style={[styles.emptyTodayText, { color: colors.textMuted }]}>اضغط لإدخال بيانات إنتاج اليوم</Text>
           </TouchableOpacity>
         )}
 
@@ -542,21 +602,29 @@ export default function ProductionScreen() {
               <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>السجل السابق</Text>
               <Text style={[styles.sectionCount, { color: colors.textMuted }]}>{history.length} يوم</Text>
             </View>
-            {history.map((p: Production) => <HistoryCard key={p.id} production={p} />)}
+            {history.map((p: Production) => (
+              <HistoryCard key={p.id} production={p} />
+            ))}
           </>
         )}
 
         <View style={{ height: Theme.spacing.xl }} />
       </ScrollView>
 
+      {/* Shared Toast */}
+      <Toast message={toast} type={toastType} colors={colors} />
+
       <EntryModal
-  visible={showModal}
-  existing={editTarget}
-  onClose={() => { setShowModal(false); setEditTarget(null); }}
-  onSave={handleSave}
-  department={user?.department ?? ''}
-  supervisorId={user?.id ?? ''}
-/>
+        visible={showModal}
+        existing={editTarget}
+        onClose={() => { setShowModal(false); setEditTarget(null); }}
+        onSave={handleSave}
+        department={user?.department ?? ''}
+        supervisorId={user?.id ?? ''}
+        onToast={showToast}
+      />
+
+      {dialog}
     </View>
   );
 }

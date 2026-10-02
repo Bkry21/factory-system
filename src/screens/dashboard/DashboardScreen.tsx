@@ -14,17 +14,8 @@ import { machineService } from '../../services/machineService';
 import { faultService }   from '../../services/faultService';
 import AppHeader from '../../components/ui/AppHeader';
 import type { Machine, Fault } from '../../types';
-
-// ── helpers ────────────────────────────────────────────────────────────────
-function timeAgo(iso: string): string {
-  if (!iso) return 'الآن';
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (diff < 1)  return 'الآن';
-  if (diff < 60) return `منذ ${diff} د`;
-  const h = Math.floor(diff / 60);
-  if (h < 24)   return `منذ ${h} س`;
-  return `منذ ${Math.floor(h / 24)} يوم`;
-}
+import Toast, { ToastType } from '../../components/ui/Toast';
+import { timeAgo, timeAgoShort, formatTimer } from '../../utils/time';
 
 // ── sub-components ─────────────────────────────────────────────────────────
 function PulseDot({ color }: { color: string }) {
